@@ -1,5 +1,5 @@
 package main;
-
+// WE LOVE COMMENTS
 public class Run {
 	
 	public static void main(String[] args) {
