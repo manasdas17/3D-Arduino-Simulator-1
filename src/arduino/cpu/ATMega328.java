@@ -9,8 +9,9 @@ public class ATMega328 extends AtmelAVR {
 	Flash flash;
 
 	public ATMega328 () {
-		sram = new byte[32 + 64]; //register file + i/o space
-		flash = new Flash();		
+		sram = new byte[32 + 64 + 160 + 2048*8]; //register file + i/o space + ext io/reg + internal SRAM
+		this.stack_pointer = 32 + 64 + 160 + 2048*8 - 1;
+		flash = new Flash();
 	}
 
 	//Execution
@@ -19,7 +20,8 @@ public class ATMega328 extends AtmelAVR {
 		//System.out.println("[cpu.execute()] instruction: " + Integer.toHexString(this.flash.get16bitsFromInstructionMemory(this.program_counter)));
 
 		//this.instruction_register = 0xffff & (this.flash.i_mem[this.program_counter] << 8 | this.flash.i_mem[this.program_counter+1]);
-
+		
+		
 		this.instruction_register = this.flash.get16bitsFromInstructionMemory(this.program_counter);
 
 		System.out.println("[cpu execute()] Instruction Register Dump: " + Integer.toHexString(instruction_register));
@@ -29,8 +31,11 @@ public class ATMega328 extends AtmelAVR {
 
 		System.out.print("[cpu.execute()] PC: 0x" + Integer.toHexString(this.program_counter) + " InstID: " + this.current_instruction_id);
 
-		if (this.current_instruction_id != -1) System.out.println(" Instruction: " + Instructions[this.current_instruction_id].name);
+		//if (this.current_instruction_id != -1) System.out.println(" Instruction: " + Instructions[this.current_instruction_id].name);
+		
+		if (this.current_instruction_id != -1) System.out.println(" Instruction: " + this.getInstructionById(this.current_instruction_id).name);
 
+		
 		/*
 		System.out.print("[cpu.execute()] PC: " + this.program_counter + " InstID: " + this.current_instruction_id);
 
@@ -64,8 +69,40 @@ public class ATMega328 extends AtmelAVR {
 	private void incrementProgramCounter(int k) {
 		this.program_counter += k*2;
 	}
-
-
+	
+	private int getXRegister() {
+		return this.sram[27] << 8 | this.sram[26];	
+	}
+	private int getYRegister() {
+		return this.sram[29] << 8 | this.sram[28];
+	}
+	private int getZRegister() {
+		return (this.sram[31] << 8 | this.sram[30]) & 0xffff;
+	}	
+	private void setXRegister(int n) {
+		this.sram[26] = (byte) (n & 0xff);
+		this.sram[27] = (byte) ((n >> 8) & 0xff); 	
+	}
+	private void setYRegister(int n) {
+		this.sram[28] = (byte) (n & 0xff);
+		this.sram[29] = (byte) ((n >> 8) & 0xff); 	
+	}
+	private void setZRegister(int n) {
+		this.sram[30] = (byte) (n & 0xff);
+		this.sram[31] = (byte) ((n >> 8) & 0xff); 	
+	}
+/*	
+	private int getStackPointer() {
+		System.out.println("[getStackPointer()] sph: " + this.sram[this.sph] + " spl: " + this.sram[this.spl]);
+		System.out.println("[getStackPointer()] about to return: " + ((this.sram[this.sph] & 0x3 << 8) | this.sram[this.spl]));
+		return (this.sram[this.sph] & 0x3) << 8 | this.sram[this.spl];
+	}
+	
+	private void setStackPointer(int n) {
+		this.sram[this.spl] = (byte) (n & 0xff);
+		this.sram[this.sph] = (byte) (this.sram[sph] | ((n>>8) & 0x3)); 
+	}
+*/	
 	////////////////////////////////////////// instructions \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 	private void adc_command() {
 
@@ -217,7 +254,7 @@ public class ATMega328 extends AtmelAVR {
 
 		//parameters
 		int k = this.getInstructionParameter('k'); // -64 <= k <= 63
-		if (k >= 128) k = ~k & 0x3f;
+		if (k >= 0x40) k = -((~k+1) & 0x3f); 
 		byte s = (byte) this.getInstructionParameter('s');  // 0 <= s <= 7
 
 		//operation
@@ -232,7 +269,7 @@ public class ATMega328 extends AtmelAVR {
 
 		//parameters
 		int k = this.getInstructionParameter('k'); // -64 <= k <= 63
-		if (k >= 128) k = ~k & 0x3f;
+		if (k >= 0x40) k = -((~k+1) & 0x3f);
 		byte s = (byte) this.getInstructionParameter('s');  // 0 <= s <= 7
 
 		//operation
@@ -280,6 +317,15 @@ public class ATMega328 extends AtmelAVR {
 
 	}
 	private void brne_command() {
+		
+		//parameters
+		int k = this.getInstructionParameter('k');		// -64 <= k <= 63
+		System.out.println("[brne_command()] raw k: " + k);
+		if (k >= 0x40) k = -((~k + 1) & 0x3F);
+		System.out.println("[brne_command()] modified k: " + k);
+		
+		//program counter
+		this.incrementProgramCounter((this.getFlagValue(this.Z) == true) ? k+1 : 1);
 
 	}
 	private void brpl_command() {
@@ -301,13 +347,33 @@ public class ATMega328 extends AtmelAVR {
 
 	}
 	private void bset_command() {
-
+		
+		//parameters
+		byte s = (byte) this.getInstructionParameter('s');	// 0 <= s <= 7
+		
+		//operation
+		this.setFlag(s, true);
+		
+		//program counter
+		this.incrementProgramCounter(1);
+		
 	}
 	private void bst_command() {
 
 	}
 	private void call_command() {
-
+		
+		//parameters
+		int k = (this.getInstructionParameter('k') << 8		// 0 <= k < 64K 
+				| this.flash.get16bitsFromInstructionMemory(this.program_counter+2)) << 1;
+		
+		//operation
+		this.sram[this.stack_pointer] = (byte) (this.program_counter + 2*0x02);
+		this.stack_pointer -= 2*0x02;
+		
+		//program counter
+		this.program_counter = k;
+		
 	}
 	private void cbi_command() {
 
@@ -446,7 +512,17 @@ public class ATMega328 extends AtmelAVR {
 
 	}
 	private void in_command() {
-
+		
+		//parameters
+		int d = this.getInstructionParameter('d');		// 0 <= d <= 31
+		int A = this.getInstructionParameter('A');		// 0 <= A <= 63
+		
+		//operation
+		this.sram[d] = this.sram[0x20 + A];
+		
+		//program counter
+		this.incrementProgramCounter(1);
+		
 	}
 	private void inc_command() {
 
@@ -496,7 +572,16 @@ public class ATMega328 extends AtmelAVR {
 
 	}
 	private void ldz1_command() {
+		
+		//parameters
+		int d = this.getInstructionParameter('d');	// 0 <= d <= 31
+		
+		//operation
+		this.sram[d] = this.sram[this.getZRegister()];
 
+		//program counter
+		this.incrementProgramCounter(1);
+		
 	}
 	private void ldz2_command() {
 
@@ -505,6 +590,16 @@ public class ATMega328 extends AtmelAVR {
 
 	}
 	private void ldz4_command() {
+		
+		//parameters
+		int q = this.getInstructionParameter('q');		// 0 <= q <= 63
+		int d = this.getInstructionParameter('d');		// 0 <= d <= 31
+		
+		//operation
+		this.sram[d] = this.sram[this.getZRegister()+q];
+		
+		//program counter
+		this.incrementProgramCounter(1);
 
 	}
 	private void ldi_command() {
@@ -535,7 +630,16 @@ public class ATMega328 extends AtmelAVR {
 
 	}
 	private void lpm3_command() {
-
+		
+		//parameters
+		int d = this.getInstructionParameter('d');		// 0 <= d <= 31
+		
+		//operation
+		this.sram[d] = this.sram[this.getZRegister()];
+		this.setZRegister(this.getZRegister() + 1);
+		
+		//program counter
+		this.incrementProgramCounter(1);
 	}
 	private void lsl_command() {
 
@@ -616,16 +720,27 @@ public class ATMega328 extends AtmelAVR {
 		this.sram[A+0x20] = this.sram[r];
 
 		//program counter
-		incrementProgramCounter(1);
+		this.incrementProgramCounter(1);
 
 	}
 	private void pop_command() {
 
 	}
 	private void push_command() {
+		
+		//parameters
+		int r = this.getInstructionParameter('r');
+		
+		//operation
+		this.sram[this.stack_pointer] = this.sram[r];	// 0 <= r <= 31
+		this.stack_pointer -= 1 * 0x2;
+		
+		//program counter
+		this.incrementProgramCounter(1);
 
 	}
 	private void rcall_command() {
+		
 
 	}
 	private void ret_command() {
@@ -642,7 +757,7 @@ public class ATMega328 extends AtmelAVR {
 		if (k >= 2*1024) k = ~k & 0x7ff; 			// 2's complement
 
 		//program counter
-		this.program_counter += k+1;
+		this.incrementProgramCounter(k+1);
 	}
 
 	private void rol_command() {
@@ -726,13 +841,24 @@ public class ATMega328 extends AtmelAVR {
 
 	}
 	private void stx2_command() {
+		
+		//parameters
+		int r = this.getInstructionParameter('r');
 
+		//operation
+		this.sram[this.getXRegister()] = this.sram[r];
+		this.setXRegister(this.getXRegister() -1);
+		
+		//program counter
+		this.incrementProgramCounter(1);
+		
 	}
 	private void stx3_command() {
 
 	}
 	private void sty1_command() {
-
+		
+		
 	}
 	private void sty2_command() {
 
@@ -744,7 +870,20 @@ public class ATMega328 extends AtmelAVR {
 
 	}
 	private void stz1_command() {
+		/*
+		//parameters
+		int r = this.getInstructionParameter('r');
+		
+		//debug
+		System.out.println("[stz1_command()] getZRegister(): " + getZRegister());
+		// end debug
+		
+		//operation
+		this.sram[this.getZRegister()] = this.sram[r];
 
+		//program counter
+		this.incrementProgramCounter(1);
+		*/
 	}
 	private void stz2_command() {
 
@@ -815,12 +954,13 @@ public class ATMega328 extends AtmelAVR {
 	public void runInstruction() {
 
 		switch (this.current_instruction_id) {
+		/*
 		case -1: 
 			System.out.println("\n[!] Unknown instruction: 0x" 
 					+ Integer.toHexString(this.instruction_register));
 			incrementProgramCounter(1);
 			break;
-
+		*/
 		case 0: adc_command(); break;
 		case 1: add_command(); break;
 		case 2: adiw_command(); break;
@@ -829,7 +969,9 @@ public class ATMega328 extends AtmelAVR {
 		case 5: asr_command(); break;
 		case 6: bclr_command(); break;
 		case 7: bld_command(); break;
-		case 8: brbc_command(); break;
+		
+		case 8: brne_command(); break; //swapped with brne
+		
 		case 9: brbs_command(); break;
 		case 10: brcc_command(); break;
 		case 11: brcs_command(); break;
@@ -843,7 +985,9 @@ public class ATMega328 extends AtmelAVR {
 		case 19: brlo_command(); break;
 		case 20: brlt_command(); break;
 		case 21: brmi_command(); break;
-		case 22: brne_command(); break;
+		
+		case 22: brbc_command(); break; //swapped with brbc
+		
 		case 23: brpl_command(); break;
 		case 24: brsh_command(); break;
 		case 25: brtc_command(); break;

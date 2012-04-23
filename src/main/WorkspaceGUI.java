@@ -9,7 +9,7 @@ import java.awt.event.*;
 public class WorkspaceGUI extends JFrame {
 	
 	JPanel jp = new JPanel();
-	JButton b = new JButton("Execute Next Instruction");
+	JButton b = new JButton("Run");
 	JTextArea jta_registers = new JTextArea("Registers [SRAM offsets 0x00 - 0x20]");
 	JTextArea jta_instruction = new JTextArea("Instruction Data");
 	GridBagLayout gb = new GridBagLayout();
@@ -21,9 +21,10 @@ public class WorkspaceGUI extends JFrame {
 		init();
 	}
 	
+	
 	public void init() {
 		
-		this.setSize(700,700);
+		this.setSize(100,100);
 		//this.setExtendedState(JFrame.MAXIMIZED_BOTH);
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		jp.setLayout(gb);
@@ -32,12 +33,14 @@ public class WorkspaceGUI extends JFrame {
 			
 			public void actionPerformed(ActionEvent e) {
 				a.run();
-				jta_registers.setText(a.getCpuRegisters());
-				jta_instruction.setText("Instruction Register: \nPProgram Counter: \nInstruction: \n");
+				System.exit(1); //just for debug
+				//jta_registers.setText(a.getCpuRegisters());
+				//jta_instruction.setText("Instruction Register: \nPProgram Counter: \nInstruction: \n");
 			}
 			
 		});
 		
+		/*
 		gc.anchor = GridBagConstraints.NORTH;
 		gc.insets = new Insets(5,5,5,5);
 		gc.gridx = 0;
@@ -47,10 +50,11 @@ public class WorkspaceGUI extends JFrame {
 		jp.add(jta_registers, gc);
 		gc.gridx=1;
 		jp.add(jta_instruction, gc);
-		
+		*/
+		jp.add(b);
 		this.add(jp, BorderLayout.NORTH);
 		this.setVisible(true);
-
+	
 	}
 	
 	      

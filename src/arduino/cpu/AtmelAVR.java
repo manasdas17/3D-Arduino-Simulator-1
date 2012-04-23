@@ -16,7 +16,11 @@ public class AtmelAVR {
 
 	//offsets
 	public final byte sreg = 0x5f; // status register
-
+	
+	public final byte spl = 0x5d; // stack pointer low
+	public final byte sph = 0x5e; // stack pointer high
+	
+	
 	// execution variables
 	protected int program_counter;
 	protected int instruction_register;	
@@ -36,6 +40,14 @@ public class AtmelAVR {
 		return -1;
 	}
 	
+	// very extremely inefficient code for getting the instruction name.
+	public Instruction getInstructionById(int id) {
+		for (int i = 0; i < Instructions.length; i++) {
+			if ( Instructions[i].id == id) return Instructions[i];
+		}
+		return null;
+	}
+	
 	public int getInstructionParameter(char ch) {
 		return decodeInstructionParameter(instruction_register, Instructions[current_instruction_id].formatString, ch);
 	}
@@ -43,15 +55,12 @@ public class AtmelAVR {
 	public int getNoOfWords(int instr) {
 		return Instructions[getInstructionId(instr)].words;
 	}
-	
-	//Fatma valla cok ozur dilerim tam senin kodu save edilmemis ekrandan cut paste ederken
-	//bilgisayar gitti senin kod da gitti mecbur oturup bastan yazdim beni affet
 
 	public static int decodeInstructionParameter(int instr, String formatString, char ch) {
 
 		String bitmask = ""; String parameter = "";
 		String instruction = Integer.toBinaryString(instr);
-
+		
 		for (int i = instruction.length(); i < 16; i++) 
 			instruction = "0" + instruction;
 
@@ -66,6 +75,8 @@ public class AtmelAVR {
 	}
 
 	protected static final Instruction[] Instructions = new Instruction[] {
+		
+		// brbc and brne are swapped or brbc will always match instead of brne.
 
 		new Instruction(0, "adc", 0x1C00, 0xFC00, "0001 11rd dddd rrrr", 1),
 		new Instruction(1, "add", 0x0C00, 0xFC00, "0000 11rd dddd rrrr", 1),
@@ -75,7 +86,9 @@ public class AtmelAVR {
 		new Instruction(5, "asr", 0x9405, 0xFE0F, "1001 010d dddd 0101", 1),
 		new Instruction(6, "bclr", 0x9488, 0xFF8F, "1001 0100 1sss 1000", 1),
 		new Instruction(7, "bld", 0xF800, 0xFE08, "1111 100d dddd 0bbb", 1),
-		new Instruction(8, "brbc", 0xF400, 0xFC00, "1111 01kk kkkk ksss", 1),
+		
+		new Instruction(8, "brne", 0xF401, 0xFC07, "1111 01kk kkkk k001", 1),
+		
 		new Instruction(9, "brbs", 0xF000, 0xFC00, "1111 00kk kkkk ksss", 1),
 		new Instruction(10, "brcc", 0xF400, 0xFC07, "1111 01kk kkkk k000", 1),
 		new Instruction(11, "brcs", 0xF000, 0xFC07, "1111 00kk kkkk k000", 1),
@@ -89,7 +102,10 @@ public class AtmelAVR {
 		new Instruction(19, "brlo", 0xF000, 0xFC07, "1111 00kk kkkk k000", 1),
 		new Instruction(20, "brlt", 0xF004, 0xFC07, "1111 00kk kkkk k100", 1),
 		new Instruction(21, "brmi", 0xF002, 0xFC07, "1111 00kk kkkk k010", 1),
-		new Instruction(22, "brne", 0xF401, 0xFC07, "1111 01kk kkkk k001", 1),
+		
+		
+		new Instruction(22, "brbc", 0xF400, 0xFC00, "1111 01kk kkkk ksss", 1),
+		
 		new Instruction(23, "brpl", 0xF402, 0xFC07, "1111 01kk kkkk k010", 1),
 		new Instruction(24, "brsh", 0xF400, 0xFC07, "1111 01kk kkkk k000", 1),
 		new Instruction(25, "brtc", 0xF406, 0xFC07, "1111 01kk kkkk k110", 1),
@@ -165,7 +181,8 @@ public class AtmelAVR {
 		new Instruction(94, "ori", 0x6000, 0xF000, "0110 KKKK dddd KKKK", 1),
 		new Instruction(95, "out", 0xB800, 0xF800, "1011 1AAr rrrr AAAA", 1),
 		new Instruction(96, "pop", 0x900F, 0xFE0F, "1001 000d dddd 1111", 1),
-		new Instruction(97, "push", 0x920F, 0xFE0F, "1001 001d dddd 1111", 1),
+		// new Instruction(97, "push", 0x920F, 0xFE0F, "1001 001d dddd 1111", 1),
+		new Instruction(97, "push", 0x920F, 0xFE0F, "1001 001r rrrr 1111", 1),
 		new Instruction(98, "rcall", 0xD000, 0xF000, "1101 kkkk kkkk kkkk", 1),
 		new Instruction(99, "ret", 0x9508, 0xFFFF, "1001 0101 0000 1000", 1),
 		new Instruction(100, "reti", 0x9518, 0xFFFF, "1001 0101 0001 1000", 1),
