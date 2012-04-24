@@ -10,7 +10,7 @@ import arduino.BinaryFunctions;
 public class Flash {
 	
 	byte[] i_mem = new byte[(64*1024)-1]; // 64 kb instruction memory	
-	byte[] p_mem = new byte[(32*1024)-1]; // 32 kb program memory
+	//byte[] p_mem = new byte[(32*1024)-1]; // 32 kb program memory
 	
 	public int i_count = 0; // # of instructions loaded
 	
@@ -28,18 +28,12 @@ public class Flash {
 	
 	
 	public int get16bitsFromInstructionMemory(int offset) {
-		//System.out.println("[get16bitsFromInstrucionMemory()] i_mem[" + Integer.toHexString(offset) + "]: " + Integer.toHexString(this.i_mem[offset]));
-		//System.out.println("[get16bitsFromInstrucionMemory()] i_mem[" + Integer.toHexString(offset) + "+1]: " + Integer.toHexString(this.i_mem[offset+1]));
-		//System.out.println("[get16bitsFromInstrucionMemory()] Parsing 16 bits: 0x"
-				//+ Integer.toHexString(this.i_mem[offset] & 0xffff));
-		//		+ Integer.toHexString(0xffff & ((this.i_mem[offset] << 8) | this.i_mem[offset+1])));
+		
 		System.out.println("[get16bitsFromInstrucionMemory()] Returning 16 bits: 0x"
-				//+ Integer.toHexString(this.i_mem[offset] & 0xffff));
 				+ Integer.toHexString(((this.i_mem[offset] & 0xff) << 8) | (this.i_mem[offset+1] & 0xff)));
 		
 		return ((this.i_mem[offset] & 0xff) << 8) | (this.i_mem[offset+1] & 0xff);
-		//return 0xffff & ((this.i_mem[offset] << 8) | this.i_mem[offset+1]);
-		//return this.i_mem[offset] & 0xffff;
+		
 	}
 	
 		

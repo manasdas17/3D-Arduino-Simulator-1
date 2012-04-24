@@ -5,6 +5,8 @@ import arduino.cpu.ATMega328;
 
 public class Arduino {
 	
+	int x = 0; // Just For Debug
+	
 	int[] pins = new int[32]; // kac pin var hatirlamiyorum
 	
 	//byte[] Eeprom = new byte[1024];
@@ -14,10 +16,11 @@ public class Arduino {
 	
 	public void run() {
 		
-		for(int i = 0; i < 60; i++) {
-		
+		for(int i = 0; i < 300; i++) {
+		//while (cpu.hasInstructions()) {
+			//System.out.println("[Arduino->run()] Iteration #" + x);
 			if (cpu.hasInstructions()) cpu.execute();
-		
+			//x++;
 		}
 		
 		

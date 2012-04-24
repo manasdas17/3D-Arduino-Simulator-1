@@ -33,7 +33,6 @@ public class WorkspaceGUI extends JFrame {
 			
 			public void actionPerformed(ActionEvent e) {
 				a.run();
-				System.exit(1); //just for debug
 				//jta_registers.setText(a.getCpuRegisters());
 				//jta_instruction.setText("Instruction Register: \nPProgram Counter: \nInstruction: \n");
 			}
