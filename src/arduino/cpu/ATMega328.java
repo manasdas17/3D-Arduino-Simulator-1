@@ -983,7 +983,7 @@ public class ATMega328 extends AtmelAVR {
 	}
 	private void sei_command() {
 		
-		//operation
+		//operationn
 		this.setFlag(I, true);
 		
 		//program counter
