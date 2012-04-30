@@ -14,8 +14,12 @@ public class ATMega328 extends AtmelAVR {
 	public ATMega328 () {
 		sram = new byte[65536]; //just give it 64k for heavens sake. Solves ALOT of problems.
 		//sram = new byte[32 + 64 + 160]; //register file + i/o space + ext io/reg + internal SRAM
-		this.stack_pointer = 65535;
+		//this.stack_pointer = 65535;
 		flash = new Flash();
+		
+		// debug - initialize TIFR0->TOV0
+		//this.sram[0x35] = 0x1;
+		//this.sram[0x46] = (byte) 0xff;
 	}
 
 	//Execution
@@ -23,14 +27,18 @@ public class ATMega328 extends AtmelAVR {
 		
 		//******TRACKING PORT B ************//
 		
-		//System.out.println("##[cpu.execute()] PORTB5: " + this.sram[this.portb]);
-		/*
-		System.out.print("##[cpu.execute()] PORTB: ");
+		
+		System.out.print("##[cpu.execute()] [offset 0x24]: ");
 		for (int i = 0; i < 8; i++) {
-			System.out.print(BinaryFunctions.byteToBoolArray(this.sram[0x25])[i] + " ");
+			System.out.print(i + ": " + BinaryFunctions.byteToBoolArray(this.sram[0x24])[i] + " ");
+		}
+		System.out.print("\n##[cpu.execute()] [offset 0x25]: ");
+		for (int i = 0; i < 8; i++) {
+			System.out.print(i + ": " + BinaryFunctions.byteToBoolArray(this.sram[0x25])[i] + " ");
 		}
 		System.out.println();
-		*/
+		
+		
 		//System.out.println("[cpu.execute()] instruction: " + Integer.toHexString(this.flash.get16bitsFromInstructionMemory(this.program_counter)));
 
 		//this.instruction_register = 0xffff & (this.flash.i_mem[this.program_counter] << 8 | this.flash.i_mem[this.program_counter+1]);
@@ -59,7 +67,7 @@ public class ATMega328 extends AtmelAVR {
 
 		callInstruction();
 		//System.out.println("[cpu.execute()] executed runInstruction()\n");
-		System.out.println();
+		//System.out.println();
 
 	}
 
@@ -74,26 +82,28 @@ public class ATMega328 extends AtmelAVR {
 
 	//Internal Operations
 	private void setFlag(byte flag, boolean value) {
-		this.sram[this.sreg] = BinaryFunctions.setBitOfByte(this.sram[this.sreg], flag, value);
+		this.sram[this.sreg] = BinaryFunctions.setBit(this.sram[this.sreg], flag, value);
 	}
 
 	private boolean getFlagValue(byte bit) {
-		return BinaryFunctions.getBitOfByte(this.sram[this.sreg], bit);
+		return BinaryFunctions.getBit(this.sram[this.sreg], bit);
 	}
-
+	
 	private void incrementProgramCounter(int k) {
 		this.program_counter += k*2;
 	}
 	
-	private int getXRegister() {
-		return this.sram[27] << 8 | this.sram[26];	
+	//Extended Registers
+	public int getXRegister() {
+		return ((this.sram[27] & 0xff) << 8 | (this.sram[26] & 0xff));
+		}
+	public int getYRegister() {
+		return ((this.sram[29] & 0xff) << 8 | (this.sram[28] & 0xff));
 	}
-	private int getYRegister() {
-		return this.sram[29] << 8 | this.sram[28];
+	public int getZRegister() {
+		return ((this.sram[31] & 0xff) << 8 | (this.sram[30] & 0xff));
 	}
-	private int getZRegister() {
-		return (this.sram[31] << 8 | this.sram[30]) & 0xffff;
-	}	
+	
 	private void setXRegister(int n) {
 		this.sram[26] = (byte) (n & 0xff);
 		this.sram[27] = (byte) ((n >> 8) & 0xff); 	
@@ -107,21 +117,81 @@ public class ATMega328 extends AtmelAVR {
 		this.sram[31] = (byte) ((n >> 8) & 0xff); 	
 	}
 	
-	private int read16BitsFromStack(int offset) {
-		return (this.sram[offset-1] << 8) | this.sram[offset];
+	//Stack operations
+	public int getStackPointer() {
+		return ((this.sram[this.sph] & 0x3) << 8) | (this.sram[this.spl] & 0xff);
 	}
 	
-	private void write16BitsToStack(int value) {
-	/*
-		STACK
-		[ High Byte ]
-		[ Low Byte  ] <- STACK POINTER
+	private void setStackPointer(int n) {	
+		this.sram[this.spl] = (byte) (n & 0xff); 
+		this.sram[this.sph] = (byte) ((this.sram[this.sph] & 0xfc) | ((n >> 8) & 0x3));
+	}
 	
+	// You never do this
+	/*
+	public int readByteFromStack() {
+		return this.sram[this.getStackPointer()];
+	}
 	*/
+	
+	public int readWordFromStack() {
+		return ((this.sram[this.getStackPointer()-1] & 0xff) << 8)
+				| (this.sram[this.getStackPointer()] & 0xff);
+	}
+	
+	private void writeByteToStack(int n) {
+		this.sram[this.getStackPointer()] = (byte) (n & 0xff);
+	}
+	
+	private void writeWordToStack(int n) {
+		this.sram[this.getStackPointer()-1] = (byte) ((n >> 8) & 0xff);
+		this.sram[this.getStackPointer()] = (byte) (n & 0xff);
+	}
+	/*
+	public int getDataFromStack() {
+		
+		return (this.getStackPointer() > 1 ) ? ((this.sram[this.getStackPointer()] & 0xff) << 8)
+				| (this.sram[this.getStackPointer()-1] & 0xff)
+				: 0;
+	}
+	
+	private void writeDataToStack(int n) {
+		
+		// Data Space - Stack Layout
+		// 0x00
+		// 0x01
+		//	...
+		//	STACK
+		//	[ High Byte ]
+		//	[ Low Byte  ] <- STACK POINTER
+		//	...
+		//	0xff
+		
+		this.sram[this.getStackPointer()-1] = (byte) ((n >> 8) & 0xff);
+		this.sram[this.getStackPointer()] = (byte) (n & 0xff);
+	
+	}
+	*/
+	// Debug
+	/*
+	private int read16BitsFromDataSpace(int offset) {
+		return (this.sram[offset-1] << 8) | this.sram[offset];
+	}
+	*/
+	
+	/*
+	private void write16BitsToStack(int value) {
+	
+	//	STACK
+	//	[ High Byte ]
+	//	[ Low Byte  ] <- STACK POINTER
+	
+	
 		this.sram[this.stack_pointer-1] = (byte) ((value >> 8) & 0xff); // high byte;
 		this.sram[this.stack_pointer] = (byte) (value & 0xff);	//low byte
 	}
-
+	*/
+	
 	/*
 	private int getStackPointer() {
 		System.out.println("[getStackPointer()] sph: " + this.sram[this.sph] + " spl: " + this.sram[this.spl]);
@@ -142,17 +212,17 @@ public class ATMega328 extends AtmelAVR {
 		int r = getInstructionParameter('r');	// 0 <= r <= 31
 		int d = getInstructionParameter('d');	// 0 <= d <= 31
 
-		boolean Rd3 = BinaryFunctions.getBitOfByte(this.sram[d], 3); //before operation
-		boolean Rd7 = BinaryFunctions.getBitOfByte(this.sram[d], 7);
-		boolean Rr3 = BinaryFunctions.getBitOfByte(this.sram[r], 3);
-		boolean Rr7 = BinaryFunctions.getBitOfByte(this.sram[r], 7);
+		boolean Rd3 = BinaryFunctions.getBit(this.sram[d], 3); //before operation
+		boolean Rd7 = BinaryFunctions.getBit(this.sram[d], 7);
+		boolean Rr3 = BinaryFunctions.getBit(this.sram[r], 3);
+		boolean Rr7 = BinaryFunctions.getBit(this.sram[r], 7);
 
 		//operation
 		this.sram[d] = (byte) (this.sram[r] + this.sram[d]);
 		if (getFlagValue(C)) this.sram[d]++;
 
-		boolean R3 = BinaryFunctions.getBitOfByte(this.sram[d], 3); //after operation
-		boolean R7 = BinaryFunctions.getBitOfByte(this.sram[d], 7);
+		boolean R3 = BinaryFunctions.getBit(this.sram[d], 3); //after operation
+		boolean R7 = BinaryFunctions.getBit(this.sram[d], 7);
 
 		//flags
 		setFlag(C, (Rd7 & Rr7 | Rr7 & !R7 | !R7 & Rd7));
@@ -172,16 +242,16 @@ public class ATMega328 extends AtmelAVR {
 		int r = getInstructionParameter('r');	// 0 <= r <= 31
 		int d = getInstructionParameter('d');	// 0 <= d <= 31
 
-		boolean Rd3 = BinaryFunctions.getBitOfByte(this.sram[d], 3); //before operation
-		boolean Rd7 = BinaryFunctions.getBitOfByte(this.sram[d], 7);
-		boolean Rr3 = BinaryFunctions.getBitOfByte(this.sram[r], 3);
-		boolean Rr7 = BinaryFunctions.getBitOfByte(this.sram[r], 7);
+		boolean Rd3 = BinaryFunctions.getBit(this.sram[d], 3); //before operation
+		boolean Rd7 = BinaryFunctions.getBit(this.sram[d], 7);
+		boolean Rr3 = BinaryFunctions.getBit(this.sram[r], 3);
+		boolean Rr7 = BinaryFunctions.getBit(this.sram[r], 7);
 
 		//operation
 		this.sram[d] = (byte) (this.sram[r] + this.sram[d]);
 
-		boolean R3 = BinaryFunctions.getBitOfByte(this.sram[d], 3); //after operation
-		boolean R7 = BinaryFunctions.getBitOfByte(this.sram[d], 7);
+		boolean R3 = BinaryFunctions.getBit(this.sram[d], 3); //after operation
+		boolean R7 = BinaryFunctions.getBit(this.sram[d], 7);
 
 		//flags
 		setFlag(C, (Rd7 & Rr7 | Rr7 & !R7 | !R7 & Rd7));
@@ -201,14 +271,14 @@ public class ATMega328 extends AtmelAVR {
 		int K = getInstructionParameter('K');			// 0 <= K <= 64
 		int d = 24 + 2*getInstructionParameter('d');	// 0 <= d <= 3; d = {24,26,28,30}
 
-		boolean Rdh7 = BinaryFunctions.getBitOfByte(this.sram[d+1], 7);
+		boolean Rdh7 = BinaryFunctions.getBit(this.sram[d+1], 7);
 
 		//operation
 		int result = ((this.sram[d+1] << 8) | (this.sram[d])) + K;
 		this.sram[d] = (byte) (result & 0xff); 
 		this.sram[d+1] = (byte) (result & 0xff00 >> 8);
 
-		boolean R15 = BinaryFunctions.getBitOfByte(this.sram[d+1], 7);
+		boolean R15 = BinaryFunctions.getBit(this.sram[d+1], 7);
 
 		//flags
 		setFlag(C, !R15 & Rdh7);
@@ -232,7 +302,7 @@ public class ATMega328 extends AtmelAVR {
 
 		//flags
 		setFlag(Z, this.sram[d] == 0 ? true : false);
-		setFlag(N, (BinaryFunctions.getBitOfByte(this.sram[d], 7)));
+		setFlag(N, (BinaryFunctions.getBit(this.sram[d], 7)));
 		setFlag(V, false);
 		setFlag(S, getFlagValue(N) ^ getFlagValue(Z) );
 
@@ -253,7 +323,7 @@ public class ATMega328 extends AtmelAVR {
 
 		//flags
 		setFlag(Z, this.sram[d] == 0 ? true : false);
-		setFlag(N, (BinaryFunctions.getBitOfByte(this.sram[d], 7)));
+		setFlag(N, (BinaryFunctions.getBit(this.sram[d], 7)));
 		setFlag(V, false);
 		setFlag(S, getFlagValue(N) ^ getFlagValue(V) );
 
@@ -313,15 +383,36 @@ public class ATMega328 extends AtmelAVR {
 	}
 
 	private void brcc_command() {
-
+		
+		//parameters
+		int k = this.getInstructionParameter('k'); // -64 <= k <= 63
+		if (k >= 0x40) k = -((~k+1) & 0x3f);
+		
+		//operation
+		this.incrementProgramCounter(this.getFlagValue(C) ? 1 : k+1);
+		
 	}
 	private void brcs_command() {
+		
+		//parameters
+		int k = this.getInstructionParameter('k'); // -64 <= k <= 63
+		if (k >= 0x40) k = -((~k+1) & 0x3f);
+
+		//operation
+		this.incrementProgramCounter(this.getFlagValue(C) ? k+1 : 1);
 
 	}
 	private void break_command() {
 
 	}
 	private void breq_command() {
+		
+		//parameters
+		int k = this.getInstructionParameter('k'); // -64 <= k <= 63
+		if (k >= 0x40) k = -((~k+1) & 0x3f);
+		
+		//operation
+		this.incrementProgramCounter(getFlagValue(Z) ? k+1 : 1);
 
 	}
 	private void brge_command() {
@@ -357,7 +448,7 @@ public class ATMega328 extends AtmelAVR {
 		//System.out.println("[brne_command()] modified k: " + k);
 		
 		//program counter
-		this.incrementProgramCounter((this.getFlagValue(this.Z) == true) ? k+1 : 1);
+		this.incrementProgramCounter((this.getFlagValue(this.Z) == false) ? k+1 : 1);
 
 	}
 	private void brpl_command() {
@@ -402,14 +493,17 @@ public class ATMega328 extends AtmelAVR {
 		//operation
 		//this.sram[this.stack_pointer] = (byte) (this.program_counter + 2*0x2);
 		
-		this.write16BitsToStack(this.program_counter + 2*0x2);
-		this.stack_pointer -= 2;
-
+		//this.write16BitsToStack(this.program_counter + 2*0x2);
+		//this.stack_pointer -= 2;
+		
+		this.writeWordToStack(this.program_counter + 2*0x2);
+		this.setStackPointer(this.getStackPointer()-2);
+		
 		//debug
 		//System.out.println("[call_command()] (program_counter + 4): " + (this.program_counter+4));
 		//System.out.println("[call_command()] pushed " + this.sram[this.stack_pointer+2] + " into offset " + (this.stack_pointer+2));
-		System.out.println("[call_command()] current stack_pointer: " + this.stack_pointer);
-		System.out.println("[call_command()] stack value at " + (this.stack_pointer+2) + ": " + this.read16BitsFromStack(this.stack_pointer+2) );
+		//System.out.println("[call_command()] current stack_pointer: " + this.getStackPointer());
+		//System.out.println("[call_command()] stack value at " + (this.getStackPointer()+2) + ": " + this.read16BitsFromDataSpace(this.getStackPointer()+2));
 		//program counter
 		this.program_counter = k;
 		
@@ -427,6 +521,12 @@ public class ATMega328 extends AtmelAVR {
 
 	}
 	private void cli_command() {
+		
+		//operation
+		this.setFlag(I, false);
+		
+		//program counter
+		this.incrementProgramCounter(1);
 
 	}
 	private void cln_command() {
@@ -467,12 +567,68 @@ public class ATMega328 extends AtmelAVR {
 
 	}
 	private void cp_command() {
+		
+		//parameters
+		int d = this.getInstructionParameter('d');
+		int r = this.getInstructionParameter('r');
+		
+		//pre operation
+		boolean Rd3 = BinaryFunctions.getBit(this.sram[d], 3);
+		boolean Rd7 = BinaryFunctions.getBit(this.sram[d], 7);
+		boolean Rr3 = BinaryFunctions.getBit(this.sram[r], 3);
+		boolean Rr7 = BinaryFunctions.getBit(this.sram[r], 7);
+		
+		//operation
+		int R = this.sram[d] - this.sram[r];
+		
+		//post operation
+		boolean R3 = BinaryFunctions.getBit(R, 3);
+		boolean R7 = BinaryFunctions.getBit(R, 7);
+		
+		//flags
+		this.setFlag(C, (Math.abs(this.sram[r]) > Math.abs(this.sram[d])) ? true : false);
+		this.setFlag(Z, ((R == 0) ? true : false));
+		this.setFlag(N, R7);
+		setFlag(V, Rd7 & !Rr7 & !R7 | !Rd7 & Rr7 & R7);
+		setFlag(S, getFlagValue(N) ^ getFlagValue(V));
+		setFlag(H, !Rd3 & Rr3 | Rr3 & R3 | R3 & !Rd3);
+		
+		//program counter
+		this.incrementProgramCounter(1);
+		
+
 
 	}
 	private void cpc_command() {
 
-		incrementProgramCounter(1);
+		//parameters
+		int d = this.getInstructionParameter('d');
+		int r = this.getInstructionParameter('r');
+		
+		//pre operation
+		boolean Rd3 = BinaryFunctions.getBit(this.sram[d], 3);
+		boolean Rd7 = BinaryFunctions.getBit(this.sram[d], 7);
+		boolean Rr3 = BinaryFunctions.getBit(this.sram[r], 3);
+		boolean Rr7 = BinaryFunctions.getBit(this.sram[r], 7);
+		
+		//operation
+		int c = (this.getFlagValue(C) ? 1 : 0); // carry
+		int R = this.sram[d] - this.sram[r] - c;
 
+		//post operation
+		boolean R3 = BinaryFunctions.getBit(R, 3);
+		boolean R7 = BinaryFunctions.getBit(R, 7);
+		
+		//flags
+		setFlag(C, (Math.abs(this.sram[r] + c) > Math.abs(this.sram[d])) ? true : false);
+		if (R != 0) setFlag(Z, false);
+		setFlag(N, R7);
+		setFlag(V, Rd7 & !Rr7 & !R7 | !Rd7 & Rr7 & R7);
+		setFlag(S, getFlagValue(N) ^ getFlagValue(V));
+		setFlag(H, !Rd3 & Rr3 | Rr3 & R3 | R3 & !Rd3);
+		
+		//program counter
+		this.incrementProgramCounter(1);
 	}
 
 
@@ -482,25 +638,25 @@ public class ATMega328 extends AtmelAVR {
 		int K = this.getInstructionParameter('K');      // 0 <= K <= 255
 
 		//before operation
-		boolean Rd3 = BinaryFunctions.getBitOfByte(this.sram[d], 3);
-		boolean Rd7 = BinaryFunctions.getBitOfByte(this.sram[d], 7);
-		boolean K7 = BinaryFunctions.getBitFromInt(K,7);
-		boolean K3 = BinaryFunctions.getBitFromInt(K,3);
+		boolean Rd3 = BinaryFunctions.getBit(this.sram[d], 3);
+		boolean Rd7 = BinaryFunctions.getBit(this.sram[d], 7);
+		boolean K7 = BinaryFunctions.getBit(K,7);
+		boolean K3 = BinaryFunctions.getBit(K,3);
 		
 		
 		//operation
 		int result = this.sram[d] - K;
 		
 		//after operation
-		boolean R3 = BinaryFunctions.getBitOfByte(this.sram[d], 3);
-		boolean R7 = BinaryFunctions.getBitOfByte(this.sram[d], 7);
+		boolean R3 = BinaryFunctions.getBit(this.sram[d], 3);
+		boolean R7 = BinaryFunctions.getBit(this.sram[d], 7);
 		
 		//flags
 		setFlag(C, (Math.abs(K) > Math.abs(this.sram[d]) ? true : false));
 		setFlag(Z, (result == 0) ? true : false);
-		setFlag(N, BinaryFunctions.getBitOfByte(this.sram[d], 7));
+		setFlag(N, BinaryFunctions.getBit(this.sram[d], 7));
 		setFlag(V, Rd7 & !K7 & R7 | !Rd7 & K7 & R7);
-		setFlag(S, getFlagValue(N) ^ getFlagValue(Z) );
+		setFlag(S, getFlagValue(N) ^ getFlagValue(V) );
 		setFlag(H, !Rd3 & K3 | K3 & R3 | R3 & !Rd3);
 
 		//program counter
@@ -511,7 +667,22 @@ public class ATMega328 extends AtmelAVR {
 
 	}
 	private void dec_command() {
-
+		
+		//parameters
+		int d = this.getInstructionParameter('d');
+		
+		//operation
+		this.sram[d] -= 1;
+		
+		//flags
+		this.setFlag(Z, (this.sram[d] == 0) ? true : false);
+		this.setFlag(N, ((((this.sram[d] >> 7) & 0x1 ) == 1) ? true : false));
+		this.setFlag(V, (this.sram[d] == 0x7f) ? true : false);
+		this.setFlag(S, this.getFlagValue(V) ^ this.getFlagValue(N));
+		
+		//program counter
+		this.incrementProgramCounter(1);
+		
 	}
 	private void des_command() {
 
@@ -543,9 +714,9 @@ public class ATMega328 extends AtmelAVR {
 
 		//flags
 		setFlag(Z, this.sram[d] == 0 ? true : false);
-		setFlag(N, (BinaryFunctions.getBitOfByte(this.sram[d], 7)));
+		setFlag(N, (BinaryFunctions.getBit(this.sram[d], 7)));
 		setFlag(V, false);
-		setFlag(S, getFlagValue(N) ^ getFlagValue(Z) );
+		setFlag(S, getFlagValue(N) ^ getFlagValue(V) );
 
 		//program counter
 		incrementProgramCounter(1);	
@@ -573,7 +744,8 @@ public class ATMega328 extends AtmelAVR {
 		int A = this.getInstructionParameter('A');		// 0 <= A <= 63
 		
 		//operation
-		this.sram[d] = this.sram[0x20 + A];
+		this.sram[d] = this.sram[A+0x20];
+		
 		
 		//program counter
 		this.incrementProgramCounter(1);
@@ -612,6 +784,12 @@ public class ATMega328 extends AtmelAVR {
 
 		//operation
 		this.sram[d] = this.sram[this.getXRegister()];
+		
+		//debug
+		System.out.println("[ldx1_command()] wrote 0x" + Integer.toHexString(this.sram[d] & 0xff)
+				+ " (" + (this.sram[d] & 0xff) + ") into X Register (offset 0x" 
+				+ Integer.toHexString((this.getXRegister()) & 0xffff) + ")"
+				+ " (" + ((this.getXRegister()) & 0xffff) + ")");
 
 		//program counter
 		this.incrementProgramCounter(1);
@@ -642,6 +820,11 @@ public class ATMega328 extends AtmelAVR {
 		
 		//operation
 		this.sram[d] = this.sram[this.getZRegister()];
+		
+		//debug
+		System.out.println("[ldz1_command()] wrote 0x" + Integer.toHexString(this.sram[d] & 0xff)
+				+ " (" + (this.sram[d] & 0xff) + ") into offset 0x" + Integer.toHexString(this.getZRegister() & 0xffff)
+				+ " (" + (this.getZRegister() & 0xffff) + ")");
 
 		//program counter
 		this.incrementProgramCounter(1);
@@ -662,6 +845,11 @@ public class ATMega328 extends AtmelAVR {
 		//operation
 		this.sram[d] = this.sram[this.getZRegister()+q];
 		
+		//debug
+		System.out.println("[ldz4_command()] wrote 0x" + Integer.toHexString(this.sram[d] & 0xff)
+				+ " (" + (this.sram[d] & 0xff) + ") into offset 0x" + Integer.toHexString(this.getZRegister() & 0xffff)
+				+ " (" + (this.getZRegister() & 0xffff) + ")");
+		
 		//program counter
 		this.incrementProgramCounter(1);
 
@@ -674,6 +862,11 @@ public class ATMega328 extends AtmelAVR {
 
 		//operation
 		this.sram[d] = (byte) K;
+		
+		//debug
+		System.out.println("[ldi_command()] wrote 0x" + Integer.toHexString(this.sram[d] & 0xff)
+				+ " (" + (this.sram[d] & 0xff) + ") into offset 0x" + Integer.toHexString(d)
+				+ " (" + (d) + ")");
 
 		//program counter
 		this.incrementProgramCounter(1);
@@ -707,20 +900,62 @@ public class ATMega328 extends AtmelAVR {
 		int d = this.getInstructionParameter('d');		// 0 <= d <= 31
 		
 		//operation
-		this.sram[d] = this.sram[this.getZRegister()];
 		
+		//this.sram[d] = this.flash.i_mem[this.getZRegister()];
+		
+		this.sram[d] = (byte) this.flash.readByteFromInstructionMemory(this.getZRegister());
+				
+		
+		//Z-pointer selects either low byte (ZLSB = 0) or high byte (ZLSB = 1).
+		
+		/*
+		this.sram[d] = (byte) (((this.sram[30] & 0x1) == 1) ?
+					((this.flash.i_mem[this.getZRegister()] >> 8) & 0xff)
+					: ((this.flash.i_mem[this.getZRegister()]) & 0xff));
+		*/
+		
+		//debug
+		
+		System.out.println("[lpm3_command()] wrote 0x" + Integer.toHexString(this.sram[d] & 0xff)
+				+ " (" + (this.sram[d] & 0xff) + ") into offset 0x" 
+				+ Integer.toHexString(d & 0xff) + " (" + (d & 0xff) + ")");
+		
+		
+		/*
+		System.out.println("[lpm2_command()] wrote 0x" + Integer.toHexString(this.sram[d] & 0xff)
+				+ " (" + (this.sram[d] & 0xff) + ") into Z Register (offset 0x" 
+				+ Integer.toHexString((this.getZRegister()) & 0xffff) + ")"
+				+ " (" + ((this.getZRegister()) & 0xffff) + ")");
+		*/
 		//program counter
 		this.incrementProgramCounter(1);
 
 	}
 	private void lpm3_command() {
-		
+			
 		//parameters
 		int d = this.getInstructionParameter('d');		// 0 <= d <= 31
 		
 		//operation
-		this.sram[d] = this.sram[this.getZRegister()];
-		this.setZRegister(this.getZRegister() + 2);
+		
+		//this.sram[d] = this.flash.i_mem[this.getZRegister()];
+		
+		this.sram[d] = (byte) this.flash.readByteFromInstructionMemory(this.getZRegister());
+		
+		//Z-pointer selects either low byte (ZLSB = 0) or high byte (ZLSB = 1).
+		/*
+		this.sram[d] = (byte) (((this.sram[30] & 0x1) == 1) ?
+				((this.flash.i_mem[this.getZRegister()] >> 8) & 0xff)
+				: ((this.flash.i_mem[this.getZRegister()]) & 0xff));
+		*/
+		//post increment
+		this.setZRegister(this.getZRegister() + 1);
+		
+		//debug
+		
+		System.out.println("[lpm3_command()] wrote 0x" + Integer.toHexString(this.sram[d] & 0xff)
+				+ " (" + (this.sram[d] & 0xff) + ") into offset 0x" 
+				+ Integer.toHexString(d & 0xff) + " (" + (d & 0xff) + ")");
 		
 		//program counter
 		this.incrementProgramCounter(1);
@@ -785,7 +1020,7 @@ public class ATMega328 extends AtmelAVR {
 
 		//flags
 		setFlag(Z, this.sram[d] == 0 ? true : false);
-		setFlag(N, (BinaryFunctions.getBitOfByte(this.sram[d], 7)));
+		setFlag(N, (BinaryFunctions.getBit(this.sram[d], 7)));
 		setFlag(V, false);
 		setFlag(S, getFlagValue(N) ^ getFlagValue(Z) );
 
@@ -806,7 +1041,7 @@ public class ATMega328 extends AtmelAVR {
 
 		//flags
 		setFlag(Z, this.sram[d] == 0 ? true : false);
-		setFlag(N, (BinaryFunctions.getBitOfByte(this.sram[d], 7)));
+		setFlag(N, (BinaryFunctions.getBit(this.sram[d], 7)));
 		setFlag(V, false);
 		setFlag(S, getFlagValue(N) ^ getFlagValue(Z) );
 
@@ -823,6 +1058,12 @@ public class ATMega328 extends AtmelAVR {
 
 		//instruction
 		this.sram[A+0x20] = this.sram[r];
+		
+		
+		//debug
+		System.out.println("[out_command()] wrote 0x" + Integer.toHexString(this.sram[r] & 0xff)
+				+ " (" + (this.sram[r] & 0xff) + ") into offset 0x" + Integer.toHexString(A+0x20)
+				+ " (" + (A+0x20) + ")");
 
 		//program counter
 		this.incrementProgramCounter(1);
@@ -836,14 +1077,20 @@ public class ATMega328 extends AtmelAVR {
 		//parameters
 		int r = this.getInstructionParameter('r');
 		
-		System.out.println("[push_command()]: About to push " + this.sram[r] + "[0x" + Integer.toHexString(r)
-							+ "] to the stack pointed by [0x" + Integer.toHexString(this.stack_pointer) + "]");
+		//System.out.println("[push_command()]: About to push " + this.sram[r] + "[0x" + Integer.toHexString(r)
+			//				+ "] to the stack pointed by [0x" + Integer.toHexString(this.stack_pointer) + "]");
 		
 		//operation
-		this.sram[this.stack_pointer] = this.sram[r];	// 0 <= r <= 31
-		this.stack_pointer -= 1;
+		//this.sram[this.stack_pointer] = this.sram[r];	// 0 <= r <= 31
+		//this.stack_pointer -= 1;
 		
-		System.out.println("[push_command()] current stack_pointer: " + this.stack_pointer);
+		System.out.println("[push_command()] About to push 0x" + Integer.toHexString((this.sram[r] & 0xff))
+							+ " into offset 0x" + Integer.toHexString(this.getStackPointer() & 0xffff));
+		
+		this.writeByteToStack(this.sram[r] & 0xff);
+		this.setStackPointer(this.getStackPointer()-1);
+		
+		//System.out.println("[push_command()] current stack_pointer: " + this.stack_pointer);
 		
 		//program counter
 		this.incrementProgramCounter(1);
@@ -856,12 +1103,15 @@ public class ATMega328 extends AtmelAVR {
 	private void ret_command() {
 		
 		//debug
-		System.out.println("[ret_command()] value of stack pointer: " + this.stack_pointer);
+		//System.out.println("[ret_command()] value of stack pointer: " + this.stack_pointer);
 
 		//operation
-		this.stack_pointer += 2;
-		this.program_counter = this.read16BitsFromStack(this.stack_pointer);
-				
+		//this.stack_pointer += 2;
+		//this.program_counter = this.read16BitsFromStack(this.stack_pointer);
+		
+		this.setStackPointer(this.getStackPointer()+2);
+		this.program_counter = this.readWordFromStack();
+		
 	}
 	
 	private void reti_command() {
@@ -872,8 +1122,8 @@ public class ATMega328 extends AtmelAVR {
 
 		//parameters
 		int k = this.getInstructionParameter('k');	// -2*1024 <= k <= 2*1024
-		if (k >= 2*1024) k = ~k & 0x7ff; 			// 2's complement
-
+		if (k >= 0x800) k = -((~k+1)) & 0x7ff;		// 2's complement
+		
 		//program counter
 		this.incrementProgramCounter(k+1);
 	}
@@ -886,7 +1136,37 @@ public class ATMega328 extends AtmelAVR {
 	}
 	private void sbc_command() {
 
+		//parameters
+		int d = this.getInstructionParameter('d');
+		int r = this.getInstructionParameter('r');
+
+		//pre operation
+		boolean Rd3 = BinaryFunctions.getBit(this.sram[d], 3);
+		boolean Rd7 = BinaryFunctions.getBit(this.sram[d], 7);
+		boolean Rr3 = BinaryFunctions.getBit(this.sram[r], 3);
+		boolean Rr7 = BinaryFunctions.getBit(this.sram[r], 7);
+
+		//operation
+		int c = (this.getFlagValue(C) ? 1 : 0); // carry
+		this.sram[d] = (byte) (this.sram[d] - this.sram[r] - c);
+
+		//post operation
+		boolean R3 = BinaryFunctions.getBit(this.sram[d], 3);
+		boolean R7 = BinaryFunctions.getBit(this.sram[d], 7);
+
+		//flags
+		this.setFlag(C, (Math.abs(this.sram[r] + c) > Math.abs(this.sram[d])) ? true : false);
+		if (this.sram[d] != 0) this.setFlag(Z, false);
+		this.setFlag(N, R7);
+		this.setFlag(V, Rd7 & !Rr7 & !R7 | !Rd7 & Rr7 & R7);
+		this.setFlag(S, getFlagValue(N) ^ getFlagValue(V));
+		this.setFlag(H, !Rd3 & Rr3 | Rr3 & R3 | R3 & !Rd3);
+		
+		//program counter
+		this.incrementProgramCounter(1);
+		
 	}
+	
 	private void sbci_command() {
 
 		//parameters	
@@ -894,18 +1174,23 @@ public class ATMega328 extends AtmelAVR {
 		int K = this.getInstructionParameter('K'); // 0 <= K <= 255
 		
 		//pre operation
-		boolean Rd3 = BinaryFunctions.getBitOfByte(this.sram[d], 3);
-		boolean Rd7 = BinaryFunctions.getBitOfByte(this.sram[d], 7);
-		boolean K7 = BinaryFunctions.getBitFromInt(K,7);
-		boolean K3 = BinaryFunctions.getBitFromInt(K,3);
+		boolean Rd3 = BinaryFunctions.getBit(this.sram[d], 3);
+		boolean Rd7 = BinaryFunctions.getBit(this.sram[d], 7);
+		boolean K7 = BinaryFunctions.getBit(K,7);
+		boolean K3 = BinaryFunctions.getBit(K,3);
 		
 		//operation
 		int c = (this.getFlagValue(C) ? 1 : 0); // carry
 		this.sram[d] = (byte) (this.sram[d] - K - c);
 		
+		//debug
+		System.out.println("[sbci_command()] wrote 0x" + Integer.toHexString(this.sram[d] & 0xff)
+				+ " (" + (this.sram[d] & 0xff) + ") into offset 0x" + Integer.toHexString(d)
+				+ " (" + (d) + ")");
+		
 		//post operation
-		boolean R3 = BinaryFunctions.getBitOfByte(this.sram[d], 3); 
-		boolean R7 = BinaryFunctions.getBitOfByte(this.sram[d], 7);
+		boolean R3 = BinaryFunctions.getBit(this.sram[d], 3); 
+		boolean R7 = BinaryFunctions.getBit(this.sram[d], 7);
 		
 		//flags
 		this.setFlag(C, (Math.abs(K+c) > Math.abs(this.sram[d])) ? true : false);
@@ -926,6 +1211,19 @@ public class ATMega328 extends AtmelAVR {
 
 	}
 	private void sbis_command() {
+		
+		//parameters
+		int A = this.getInstructionParameter('A');	// 0 <= A <= 32
+		int b = this.getInstructionParameter('b'); 	// 0 <= b <= 7
+		
+		//operation
+		//Lower 32 I/O addresses -> A+0x20
+		if (BinaryFunctions.getBit(this.sram[A+0x20], b) == true) {
+			incrementProgramCounter(this.getInstructionWordLength(this.flash.get16bitsFromInstructionMemory(this.program_counter+2)));	
+		}
+
+		//program counter
+		this.incrementProgramCounter(1);
 
 	}
 	private void sbiw_command() {
@@ -934,15 +1232,24 @@ public class ATMega328 extends AtmelAVR {
 		int d = 24 + this.getInstructionParameter('d');	// d = {24,26,28,30}
 		int K = this.getInstructionParameter('K');		// 0 <= K <= 63
 
-		boolean Rdh7 = BinaryFunctions.getBitOfByte(this.sram[d+1],7);
+		boolean Rdh7 = BinaryFunctions.getBit(this.sram[d+1],7);
 		
 		//operation
 		int R = ((this.sram[d+1] << 8) | this.sram[d]) - K;
 		this.sram[d+1] = (byte) ((R >> 8) & 0xff);
 		this.sram[d] =  (byte) (R & 0xff);
 		
-		boolean R15 = BinaryFunctions.getBitOfByte(this.sram[d+1],7);
+		boolean R15 = BinaryFunctions.getBit(this.sram[d+1],7);
 		
+		//debug
+		System.out.println("[sbiw_command()] wrote 0x" + Integer.toHexString(this.sram[d] & 0xff)
+				+ " (" + (this.sram[d] & 0xff) + ") into offset 0x" + Integer.toHexString(d)
+				+ " (" + (d) + ")");
+		
+		System.out.println("[sbiw_command()] wrote 0x" + Integer.toHexString(this.sram[d+1] & 0xff)
+				+ " (" + (this.sram[d+1] & 0xff) + ") into offset 0x" + Integer.toHexString(d+1)
+				+ " (" + (d+1) + ")");
+
 		//flags
 		this.setFlag(C, ((Math.abs(K) > Math.abs(this.sram[d])) ? true : false));
 		this.setFlag(Z, ((R == 0) ? true : false));
@@ -967,8 +1274,8 @@ public class ATMega328 extends AtmelAVR {
 		int b = this.getInstructionParameter('b');	// 0 <= b <= 7 
 
 		//operation
-		if (BinaryFunctions.getBitOfByte(this.sram[r], b) == true) {
-			incrementProgramCounter(this.getNoOfWords(this.flash.get16bitsFromInstructionMemory(this.program_counter+2)));	
+		if (BinaryFunctions.getBit(this.sram[r], b) == true) {
+			incrementProgramCounter(this.getInstructionWordLength(this.flash.get16bitsFromInstructionMemory(this.program_counter+2)));	
 		}
 
 		//program counter
@@ -983,7 +1290,7 @@ public class ATMega328 extends AtmelAVR {
 	}
 	private void sei_command() {
 		
-		//operationn
+		//operation
 		this.setFlag(I, true);
 		
 		//program counter
@@ -1022,6 +1329,12 @@ public class ATMega328 extends AtmelAVR {
 		//operation
 		this.sram[this.getXRegister()] = this.sram[r];
 
+		//debug
+		System.out.println("[stx2_command()] wrote 0x" + Integer.toHexString(this.sram[r] & 0xff)
+				+ " (" + (this.sram[r] & 0xff) + ") into X Register (offset 0x" 
+				+ Integer.toHexString(this.getXRegister() & 0xffff) + ")"
+				+ " (" + (this.getXRegister() & 0xffff) + ")");
+
 		//program counter
 		this.incrementProgramCounter(1);
 		
@@ -1033,8 +1346,14 @@ public class ATMega328 extends AtmelAVR {
 
 		//operation
 		this.sram[this.getXRegister()] = this.sram[r];
-		this.setXRegister(this.getXRegister() - 1*0x2);
+		this.setXRegister(this.getXRegister() + 1);
 		
+		//debug
+		System.out.println("[stx2_command()] wrote 0x" + Integer.toHexString(this.sram[r] & 0xff)
+				+ " (" + (this.sram[r] & 0xff) + ") into X Register (offset 0x" 
+				+ Integer.toHexString((this.getXRegister()-1) & 0xffff) + ")"
+				+ " (" + ((this.getXRegister()-1) & 0xffff) + ")");
+
 		//program counter
 		this.incrementProgramCounter(1);
 		
@@ -1063,6 +1382,12 @@ public class ATMega328 extends AtmelAVR {
 		//operation
 		this.sram[this.getZRegister()] = this.sram[r];
 
+		//debug
+		System.out.println("[stz1_command()] wrote 0x" + Integer.toHexString(this.sram[r] & 0xff)
+				+ " (" + (this.sram[r] & 0xff) + ") into Z Register (offset 0x" 
+				+ Integer.toHexString((this.getZRegister()) & 0xffff) + ")"
+				+ " (" + ((this.getZRegister()) & 0xffff) + ")");
+
 		//program counter
 		this.incrementProgramCounter(1);
 		
@@ -1077,12 +1402,55 @@ public class ATMega328 extends AtmelAVR {
 
 	}
 	private void sts_command() {
-
+		
+		//parameters
+		int r = this.getInstructionParameter('d'); // (bad datasheet)
+		int k = this.flash.get16bitsFromInstructionMemory(this.program_counter+2);
+		
+		//operation
+		this.sram[k] = this.sram[r];
+		
+		//debug
+		System.out.println("[sts_command()] wrote 0x" + Integer.toHexString(this.sram[r] & 0xff)
+				+ " (" + (this.sram[r] & 0xff) + ") into offset 0x" 
+				+ Integer.toHexString(k & 0xffff) + " (" + (k & 0xffff) + ")");
+		
+		//program counter
+		this.incrementProgramCounter(2);
+		
 	}
 	private void sts16_command() {
 
 	}
 	private void sub_command() {
+		
+		//parameters
+		int d = this.getInstructionParameter('d');
+		int r = this.getInstructionParameter('r');
+		
+		//pre operation
+		boolean Rd3 = BinaryFunctions.getBit(this.sram[d], 3); //before operation
+		boolean Rd7 = BinaryFunctions.getBit(this.sram[d], 7);
+		boolean Rr3 = BinaryFunctions.getBit(this.sram[r], 3);
+		boolean Rr7 = BinaryFunctions.getBit(this.sram[r], 7);
+		
+		//operation
+		this.sram[d] = (byte) (this.sram[d] - this.sram[r]);
+		
+		//post operation
+		boolean R3 = BinaryFunctions.getBit(this.sram[d], 3); 
+		boolean R7 = BinaryFunctions.getBit(this.sram[d], 7);
+		
+		//flags
+		this.setFlag(C, (Math.abs(this.sram[r]) > Math.abs(this.sram[d]) ? true : false));
+		this.setFlag(Z, ((this.sram[d]) == 0) ? true : false);
+		this.setFlag(N, (BinaryFunctions.getBit(this.sram[d], 7)));
+		this.setFlag(V, Rd7 & !Rr7 & !R7 | !Rd7 & Rr7 & R7);
+		this.setFlag(S, getFlagValue(N) ^ getFlagValue(V));
+		this.setFlag(H, !Rd3 & Rr3 | Rr3 & R3 | R3 & !Rd3);
+		
+		//program counter
+		this.incrementProgramCounter(1);
 
 	}
 	private void subi_command() {
@@ -1092,24 +1460,29 @@ public class ATMega328 extends AtmelAVR {
 		int K = this.getInstructionParameter('K'); // 0 <= K <= 255
 		
 		//pre operation
-		boolean Rd3 = BinaryFunctions.getBitOfByte(this.sram[d], 3);
-		boolean Rd7 = BinaryFunctions.getBitOfByte(this.sram[d], 7);
-		boolean K7 = BinaryFunctions.getBitFromInt(K,7);
-		boolean K3 = BinaryFunctions.getBitFromInt(K,3);
+		boolean Rd3 = BinaryFunctions.getBit(this.sram[d], 3);
+		boolean Rd7 = BinaryFunctions.getBit(this.sram[d], 7);
+		boolean K7 = BinaryFunctions.getBit(K,7);
+		boolean K3 = BinaryFunctions.getBit(K,3);
 		
 		//Operation
 		this.sram[d] = (byte) (this.sram[d] - K);
+
+		//debug
+		System.out.println("[subi_command()] wrote 0x" + Integer.toHexString(this.sram[d] & 0xff)
+				+ " (" + (this.sram[d] & 0xff) + ") into offset 0x" + Integer.toHexString(d)
+				+ " (" + (d) + ")");
 		
 		//post operation
-		boolean R3 = BinaryFunctions.getBitOfByte(this.sram[d], 3); 
-		boolean R7 = BinaryFunctions.getBitOfByte(this.sram[d], 7);
+		boolean R3 = BinaryFunctions.getBit(this.sram[d], 3); 
+		boolean R7 = BinaryFunctions.getBit(this.sram[d], 7);
 
 		//Flags
 		setFlag(C, (Math.abs(K) > Math.abs(this.sram[d]) ? true : false) );
 		setFlag(Z, this.sram[d] == 0 ? true : false);
-		setFlag(N, (BinaryFunctions.getBitOfByte(this.sram[d], 7)));
+		setFlag(N, (BinaryFunctions.getBit(this.sram[d], 7)));
 		setFlag(V, Rd7 & !K7 & !R7 | !Rd7 & K7 & R7);
-		setFlag(S, getFlagValue(N) ^ getFlagValue(V) );
+		setFlag(S, getFlagValue(N) ^ getFlagValue(V));
 		setFlag(H, !Rd3 & K3 | R3 | R3 & !Rd3);
 
 		//Program Counter
@@ -1151,9 +1524,7 @@ public class ATMega328 extends AtmelAVR {
 		case 5: asr_command(); break;
 		case 6: bclr_command(); break;
 		case 7: bld_command(); break;
-		
-		case 8: brne_command(); break; //swapped with brne
-		
+		case 8: brbc_command(); break;
 		case 9: brbs_command(); break;
 		case 10: brcc_command(); break;
 		case 11: brcs_command(); break;
@@ -1167,18 +1538,14 @@ public class ATMega328 extends AtmelAVR {
 		case 19: brlo_command(); break;
 		case 20: brlt_command(); break;
 		case 21: brmi_command(); break;
-		
-		case 22: brbc_command(); break; //swapped with brbc
-		
+		case 22: brne_command(); break;
 		case 23: brpl_command(); break;
 		case 24: brsh_command(); break;
 		case 25: brtc_command(); break;
 		case 26: brts_command(); break;
 		case 27: brvc_command(); break;
 		case 28: brvs_command(); break;
-		
-		case 29: sei_command(); break; //swapped with bset
-		
+		case 29: bset_command(); break;
 		case 30: bst_command(); break;
 		case 31: call_command(); break;
 		case 32: cbi_command(); break;
@@ -1264,9 +1631,7 @@ public class ATMega328 extends AtmelAVR {
 		case 112: sbrs_command(); break;
 		case 113: sec_command(); break;
 		case 114: seh_command(); break;
-		
-		case 115: bset_command(); break; //swapped with sei
-		
+		case 115: sei_command(); break;
 		case 116: sen_command(); break;
 		case 117: ser_command(); break;
 		case 118: ses_command(); break;

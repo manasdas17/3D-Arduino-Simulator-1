@@ -27,7 +27,7 @@ public class AtmelAVR {
 	protected int program_counter;
 	protected int instruction_register;	
 	protected int current_instruction_id;
-	protected int stack_pointer;
+	//protected int stack_pointer;
 	
 	
 	//////////////////////////////////// Instruction Data \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
@@ -44,7 +44,7 @@ public class AtmelAVR {
 	
 	// very extremely inefficient code for getting the instruction name.
 	public Instruction getInstructionById(int id) {
-		for (int i = 0; i < Instructions.length; i++) {
+		for (int i = Instructions.length-1; i > -1; i--) {
 			if ( Instructions[i].id == id) return Instructions[i];
 		}
 		return null;
@@ -54,13 +54,15 @@ public class AtmelAVR {
 		return decodeInstructionParameter(instruction_register, getInstructionById(current_instruction_id).formatString, ch);
 	}
 	
-	public int getNoOfWords(int instr) {
+	
+	public int getInstructionWordLength(int instr) {
 		return Instructions[getInstructionId(instr)].words;
 	}
-
+	
+	
 	public static int decodeInstructionParameter(int instr, String formatString, char ch) { 
 		
-		//System.out.print("[AtmelAVR->decodeInstructionParameter()] variable: " + ch);
+		System.out.print("[AtmelAVR->decodeInstructionParameter()] variable: " + ch);
 		
 		
 		String bitmask = ""; String parameter = "";
@@ -81,7 +83,8 @@ public class AtmelAVR {
 		//if (parameter.equals(""))
 				//System.out.println(" value: #####");
 		//else
-		//System.out.println(" value: " + Integer.parseInt(parameter, 2));
+		System.out.println(" value: 0x" + Integer.toHexString(Integer.parseInt(parameter, 2))
+						+ " (" + Integer.parseInt(parameter,2) + ")");
 		
 		
 		return Integer.parseInt(parameter, 2);
@@ -97,12 +100,10 @@ public class AtmelAVR {
 		new Instruction(3, "and", 0x2000, 0xFC00, "0010 00rd dddd rrrr", 1),
 		new Instruction(4, "andi", 0x7000, 0xF000, "0111 KKKK dddd KKKK", 1),
 		new Instruction(5, "asr", 0x9405, 0xFE0F, "1001 010d dddd 0101", 1),
-		new Instruction(6, "bclr", 0x9488, 0xFF8F, "1001 0100 1sss 1000", 1),
+		//new Instruction(6, "bclr", 0x9488, 0xFF8F, "1001 0100 1sss 1000", 1),
 		new Instruction(7, "bld", 0xF800, 0xFE08, "1111 100d dddd 0bbb", 1),
-		
-		new Instruction(8, "brne", 0xF401, 0xFC07, "1111 01kk kkkk k001", 1),
-		
-		new Instruction(9, "brbs", 0xF000, 0xFC00, "1111 00kk kkkk ksss", 1),
+		//new Instruction(8, "brbc", 0xF400, 0xFC00, "1111 01kk kkkk ksss", 1),
+		//new Instruction(9, "brbs", 0xF000, 0xFC00, "1111 00kk kkkk ksss", 1),
 		new Instruction(10, "brcc", 0xF400, 0xFC07, "1111 01kk kkkk k000", 1),
 		new Instruction(11, "brcs", 0xF000, 0xFC07, "1111 00kk kkkk k000", 1),
 		new Instruction(12, "break", 0x9598, 0xFFFF, "1001 0101 1001 1000", 1),
@@ -115,20 +116,14 @@ public class AtmelAVR {
 		new Instruction(19, "brlo", 0xF000, 0xFC07, "1111 00kk kkkk k000", 1),
 		new Instruction(20, "brlt", 0xF004, 0xFC07, "1111 00kk kkkk k100", 1),
 		new Instruction(21, "brmi", 0xF002, 0xFC07, "1111 00kk kkkk k010", 1),
-		
-		
-		new Instruction(22, "brbc", 0xF400, 0xFC00, "1111 01kk kkkk ksss", 1),
-		
+		new Instruction(22, "brne", 0xF401, 0xFC07, "1111 01kk kkkk k001", 1),
 		new Instruction(23, "brpl", 0xF402, 0xFC07, "1111 01kk kkkk k010", 1),
 		new Instruction(24, "brsh", 0xF400, 0xFC07, "1111 01kk kkkk k000", 1),
 		new Instruction(25, "brtc", 0xF406, 0xFC07, "1111 01kk kkkk k110", 1),
 		new Instruction(26, "brts", 0xF006, 0xFC07, "1111 00kk kkkk k110", 1),
 		new Instruction(27, "brvc", 0xF403, 0xFC07, "1111 01kk kkkk k011", 1),
 		new Instruction(28, "brvs", 0xF003, 0xFC07, "1111 00kk kkkk k011", 1),
-		
-		new Instruction(29, "sei", 0x9478, 0xFFFF, "1001 0100 0111 1000", 1),
-		
-		
+		//new Instruction(29, "bset", 0x9408, 0xFF8F, "1001 0100 0sss 1000", 1),
 		new Instruction(30, "bst", 0xFA00, 0xFE08, "1111 101d dddd 0bbb", 1),
 		new Instruction(31, "call", 0x940E, 0xFE0E, "1001 010k kkkk 111k", 2),
 		new Instruction(32, "cbi", 0x9800, 0xFF00, "1001 1000 AAAA Abbb", 1),
@@ -179,6 +174,9 @@ public class AtmelAVR {
 		new Instruction(76, "ldz3", 0x9002, 0xFE0F, "1001 000d dddd 0010", 1),
 		new Instruction(77, "ldz4", 0x8000, 0xD208, "10q0 qq0d dddd 0qqq", 1),
 		new Instruction(78, "ldi", 0xE000, 0xF000, "1110 KKKK dddd KKKK", 1),
+		
+		new Instruction(137, "sts", 0x9200, 0xFE0F, "1001 001d dddd 0000", 2),
+		
 		new Instruction(79, "lds", 0x9000, 0xFC0F, "1001 000d dddd 0000", 2),
 		new Instruction(80, "lds16", 0xA000, 0xF800, "1010 0kkk dddd kkkk", 1),
 		new Instruction(81, "lpm1", 0x95C8, 0xFFFF, "1001 0101 1100 1000", 1),
@@ -216,7 +214,7 @@ public class AtmelAVR {
 		new Instruction(112, "sbrs", 0xFE00, 0xFE08, "1111 111r rrrr 0bbb", 1),
 		new Instruction(113, "sec", 0x9408, 0xFFFF, "1001 0100 0000 1000", 1),
 		new Instruction(114, "seh", 0x9458, 0xFFFF, "1001 0100 0101 1000", 1),
-		new Instruction(115, "bset", 0x9408, 0xFF8F, "1001 0100 0sss 1000", 1), // swapped with sei
+		new Instruction(115, "sei", 0x9478, 0xFFFF, "1001 0100 0111 1000", 1),
 		new Instruction(116, "sen", 0x9428, 0xFFFF, "1001 0100 0010 1000", 1),
 		new Instruction(117, "ser", 0xEF0F, 0xFF0F, "1110 1111 dddd 1111", 1),
 		new Instruction(118, "ses", 0x9448, 0xFFFF, "1001 0100 0100 1000", 1),
@@ -236,7 +234,7 @@ public class AtmelAVR {
 		new Instruction(134, "stz2", 0x9201, 0xFE0F, "1001 001r rrrr 0001", 1),
 		new Instruction(135, "stz3", 0x9202, 0xFE0F, "1001 001r rrrr 0010", 1),
 		new Instruction(136, "stz4", 0x8200, 0xD208, "10q0 qq1r rrrr 0qqq", 1),
-		new Instruction(137, "sts", 0x9200, 0xFE0F, "1001 001d dddd 0000", 2),
+		
 		new Instruction(138, "sts16", 0xA800, 0xF800, "1010 1kkk dddd kkkk", 1),
 		new Instruction(139, "sub", 0x1800, 0xFC00, "0001 10rd dddd rrrr", 1),
 		new Instruction(140, "subi", 0x5000, 0xF000, "0101 KKKK dddd KKKK", 1),

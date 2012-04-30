@@ -2,7 +2,7 @@ package arduino;
 
 public class BinaryFunctions {
 
-	
+	/*
 	public static byte setBitOfByte(byte x, byte bit, boolean value) {
 
 		boolean[] b = byteToBoolArray(x);
@@ -11,7 +11,34 @@ public class BinaryFunctions {
 		return x;
 
 	}
+	*/
 
+	public static boolean getBit(byte x, int bit) {
+		
+		return (((x >> bit) & 0x1) == 1) ? true : false;
+		
+	}
+	
+	public static boolean getBit(int x, int bit) {
+		
+		return (((x >> bit) & 0x1) == 1) ? true : false;
+		
+	}
+	
+	public static byte setBit(byte x, byte bit, boolean value) {
+		
+		return (byte) ((x & ~(1 << bit)) | ((value ? 1 : 0) << bit));
+		
+	}
+	
+	public static byte setBit(int x, byte bit, boolean value) {
+		
+		return (byte) ((x & ~(1 << bit)) | ((value ? 1 : 0) << bit));
+		
+	}
+	
+	/*
+	
 	public static boolean getBitOfByte(byte x, int bit) {
 
 		return byteToBoolArray(x)[bit];
@@ -28,7 +55,9 @@ public class BinaryFunctions {
 		return true;
 	}
 	
+	*/
 
+	
 	public static boolean[] byteToBoolArray(byte x) {
 		boolean[] b = new boolean[8];
 		for (int i = 0; i < 8; i++) {
@@ -38,6 +67,7 @@ public class BinaryFunctions {
 		return b;
 	}
 	
+	/*
 	public static boolean[] intToBoolArray(int x) {
 		boolean[] b = new boolean[32];
 		for (int i = 0; i < 32; i++) {
@@ -46,9 +76,9 @@ public class BinaryFunctions {
 		}	
 		return b;
 	}
-
-
-	public static byte boolArrayToByte(boolean[] b) { //Little endian
+	*/
+	/*
+	public static byte boolArrayToByte(boolean[] b) { 
 		byte x = 0;
 	for (int i = 0; i < b.length; i++) {
 		if (b[i] == true) {
@@ -57,6 +87,7 @@ public class BinaryFunctions {
 	}
 	return x;
 	}
+	*/
 
 	/*
 		public boolean[][] byteArrayToBoolDoubleArray(byte[] a) { //Little Endian
@@ -81,9 +112,6 @@ public class BinaryFunctions {
 		}
 		return bytes;
 	}
-
-	
-
 
 }
 

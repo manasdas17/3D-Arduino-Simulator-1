@@ -16,13 +16,18 @@ public class Flash {
 	
 	public Flash() {
 		try {
-			loadHexFile("/Users/h4x/Desktop/CoderLvL_Asian/disassemblies/code1.hex");
+			loadHexFile("/Users/h4x/Desktop/CoderLvL_Asian/disassemblies/delay/Blink.cpp.hex");
+			//loadHexFile("/Users/h4x/Desktop/CoderLvL_Asian/disassemblies/debugSketch/AVRDebugSketch.cpp.hex");
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 		
-		System.out.println("[Flash] " + i_count + " instructions loaded consuming 0x" + Integer.toHexString(i_count*2) + " (" + i_count*2 + ") bytes.\n");
+		System.out.println("[Flash()] " + i_count + " instructions loaded consuming 0x" + Integer.toHexString(i_count*2) + " (" + i_count*2 + ") bytes.\n");
 		//dumpInstructionMemory();
+		
+		//int offset = 0x32f;
+		//System.out.println("[Flash()] offset 0x" + Integer.toHexString(offset & 0xffff) + ": 0x" + Integer.toHexString((this.i_mem[offset] & 0xff)));
+		
 		
 	}
 	
@@ -36,6 +41,11 @@ public class Flash {
 		
 	}
 	
+	public int readByteFromInstructionMemory(int offset) {
+		
+		return ((offset & 0x1) == 0) ? (this.i_mem[offset+1] & 0xff) : (this.i_mem[offset-1]) & 0xff; 
+		
+	}
 		
 	public void loadHexFile(String hexFile) throws Exception {
 
