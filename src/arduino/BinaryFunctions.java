@@ -58,11 +58,11 @@ public class BinaryFunctions {
 	*/
 
 	
-	public static boolean[] byteToBoolArray(byte x) {
+	public static boolean[] byteToBoolArray(int j) {
 		boolean[] b = new boolean[8];
 		for (int i = 0; i < 8; i++) {
 			int p = (int) Math.pow(2,i);
-			b[i] = ((x & p) == p) ? true : false;
+			b[i] = ((j & p) == p) ? true : false;
 		}	
 		return b;
 	}

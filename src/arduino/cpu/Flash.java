@@ -9,15 +9,15 @@ import arduino.BinaryFunctions;
 
 public class Flash {
 	
-	byte[] i_mem = new byte[(64*1024)-1]; // 64 kb instruction memory	
+	byte[] i_mem = new byte[(64*1024)]; // 64 kb instruction memory	
 	//byte[] p_mem = new byte[(32*1024)-1]; // 32 kb program memory
 	
 	public int i_count = 0; // # of instructions loaded
 	
-	public Flash() {
+	public Flash(String hexFile) {
 		try {
-			loadHexFile("/Users/h4x/Desktop/CoderLvL_Asian/disassemblies/delay/Blink.cpp.hex");
-			//loadHexFile("/Users/h4x/Desktop/CoderLvL_Asian/disassemblies/debugSketch/AVRDebugSketch.cpp.hex");
+			this.loadHexFile(hexFile);
+			//loadHexFile("/Users/h4x/Desktop/CoderLvL_Asian/disassemblies/code2/Blink.cpp.hex");
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -32,9 +32,9 @@ public class Flash {
 	}
 	
 	
-	public int get16bitsFromInstructionMemory(int offset) {
+	public int readWordFromInstructionMemory(int offset) {
 		
-		System.out.println("[get16bitsFromInstrucionMemory()] Returning 16 bits: 0x"
+		System.out.println("[getWordFromInstrucionMemory()] Returning 16 bits: 0x"
 				+ Integer.toHexString(((this.i_mem[offset] & 0xff) << 8) | (this.i_mem[offset+1] & 0xff)));
 		
 		return ((this.i_mem[offset] & 0xff) << 8) | (this.i_mem[offset+1] & 0xff);
@@ -43,7 +43,7 @@ public class Flash {
 	
 	public int readByteFromInstructionMemory(int offset) {
 		
-		return ((offset & 0x1) == 0) ? (this.i_mem[offset+1] & 0xff) : (this.i_mem[offset-1]) & 0xff; 
+		return ((offset & 0x1) == 0) ? (this.i_mem[offset+1] & 0xff) : (this.i_mem[offset-1] & 0xff); 
 		
 	}
 		

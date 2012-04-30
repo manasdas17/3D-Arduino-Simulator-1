@@ -9,13 +9,10 @@ public class ATmega328P extends MegaAVR {
 		sram = new SRAM();
 		
 		flash = new Flash("/Users/h4x/Desktop/CoderLvL_Asian/disassemblies/code2/Blink.cpp.hex");
-		
-		
+			
 		this.SREG = 0x5f;
 		this.SPL = 0x5d;
 		this.SPH = 0x5e;
-		
-		
 		
 		// debug - initialize TIFR0->TOV0
 		//this.sram[0x35] = 0x1;
