@@ -23,8 +23,11 @@ public class Arduino {
 			System.out.println(getCpuRegisters());
 			System.out.println(getXYZPointers()); // + " " + getStackInfo());
 			System.out.println(getCpuFlags() + "\n");
+			System.out.println("TOIE0: " + cpu.getFlag(cpu.TIMSK0, cpu.TOIE0) + " TOV0:" + cpu.getFlag(cpu.TIFR0, cpu.TOV0));
+			System.out.println("[Timer] counter: " + cpu.timer0.getCounter());
 			x++;
 		}
+
 
 	}
 
@@ -32,16 +35,18 @@ public class Arduino {
 
 		while(cpu.hasInstructions()) {
 			System.out.println("\n[Arduino->run()] Iteration #" + x);
-			if (cpu.hasInstructions()) cpu.execute();
+			cpu.execute();
 
 			System.out.println(getCpuRegisters());
 			System.out.println(getXYZPointers()); // + " " + getStackInfo());
 			System.out.println(getCpuFlags() + "\n");
+			System.out.println("TOIE0: " + cpu.getFlag(cpu.TIMSK0, cpu.TOIE0) + " TOV0:" + cpu.getFlag(cpu.TIFR0, cpu.TOV0));
+			System.out.println("[Timer] counter: " + cpu.timer0.getCounter());
 			x++;
 
 			try{
 				//do what you want to do before sleeping
-				Thread.sleep(1);//sleep for 1000 ms
+				Thread.sleep(0,1);//sleep
 				//do what you want to do after sleeptig
 			}
 			catch(Exception e){
@@ -49,7 +54,6 @@ public class Arduino {
 			}
 
 		}
-
 
 		/*
 		for (int i = 0; i < cpu.noOfLoadedInstructions(); i++) {
