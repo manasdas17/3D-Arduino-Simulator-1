@@ -4,58 +4,69 @@ import arduino.BinaryFunctions;
 
 public class ATmega328P extends MegaAVR implements ATmega328P_Definitions {
 
-	public Timer8 timer0;	// change this to private
+	public Timer8 timer0;	// change this to private	
+	public Thread t1;
 	
 	public ATmega328P() {
 		
 		sram = new SRAM();
+		timer0 = new Timer8(this);
 		
-		flash = new Flash("/Users/h4x/Desktop/CoderLvL_Asian/disassemblies/Blink/Blink.cpp.hex");
-		
-		//timer0 = new Timer_8Bit(this);
-		
+		flash = new Flash("/Users/h4x/Desktop/CoderLvL_Asian/disassemblies/code3/Blink.cpp.hex");
+			
 		this.SPL =	0x5D;
 		this.SPH =	0x5E;
 		this.SREG =	0x5F;
 		
-		timer0 = new Timer8(this);
-		new Thread(timer0).start();
-		
 		//pins = new boolean[28];
-		
+	
 	}
 	
 	public void execute() {
+			
+		//System.out.println("##[cpu.execute()] TOIE0: " + this.getFlag(TIMSK0, TOIE0)
+		//		+ " TOV0: " + this.getFlag(TIFR0, TOV0));
 		
 		//******TRACKING PORT B ************//
 
-		System.out.print("##[cpu.execute()] [offset 0x24]: ");
-		for (int i = 0; i < 8; i++) {
-			System.out.print(i + ": " + BinaryFunctions.byteToBoolArray(this.sram.readByte(0x24))[i] + " ");
-		}
-		System.out.print("\n##[cpu.execute()] [offset 0x25]: ");
-		for (int i = 0; i < 8; i++) {
-			System.out.print(i + ": " + BinaryFunctions.byteToBoolArray(this.sram.readByte(0x25))[i] + " ");
-		}
+		
 		System.out.println();
 
 		this.instruction_register = this.flash.readWordFromInstructionMemory(this.program_counter);
 
 		this.current_instruction_id = getInstructionId(this.instruction_register);
 
-		System.out.print("[cpu.execute()] PC: 0x" + Integer.toHexString(this.program_counter) + " InstID: " + this.current_instruction_id);
+		//System.out.print("[cpu.execute()] PC: 0x" + Integer.toHexString(this.program_counter) + " InstID: " + this.current_instruction_id);
 
-		if (this.current_instruction_id != -1) System.out.println(" Instruction: " + this.getInstructionById(this.current_instruction_id).name);
+		//if (this.current_instruction_id != -1) System.out.println(" Instruction: " + this.getInstructionById(this.current_instruction_id).name);
 
 		callInstruction();
-
+		
+		updateModules();
+		
 		handleInterrupts();
+		
+		//updatePins();
+		
+		//System.out.println("[cpu] Timer counter: " + this.timer0.getCounter());
+	}
+	
+	// Modules
+	private void updateModules() {
+		
+		final int clkIO_prescaler = 128;
+		
+		for (int i = 0; i < this.clock*clkIO_prescaler; i++) {
+			timer0.update();
+		}
+		
+		this.clock = 0;
 		
 	}
 	
 	// Interrupts	
 	private void handleInterrupts() {
-		
+				
 		if (!this.getStatusFlag(I)) return;
 		
 		// 1 RESET
@@ -77,10 +88,10 @@ public class ATmega328P extends MegaAVR implements ATmega328P_Definitions {
 
 		// 17 TIMER0 OVF	- Timer/Counter0 Overflow		
 		if (this.getFlag(TIMSK0, TOIE0) & this.getFlag(TIFR0, TOV0)) {
-			
 			this.setStatusFlag(I, false);
+			this.clearFlag(TIFR0, TOV0);
 			this.callInterrupt(0x40);
-			this.clearFlag(TIMSK0, TOV0);
+			this.updateClock(2);
 		}
 		
 		// 18 SPI STC		- SPI Serial Transfer Complete
@@ -92,8 +103,7 @@ public class ATmega328P extends MegaAVR implements ATmega328P_Definitions {
 		// 24 ANALOG COMP	- Analog Comparator
 		// 25 TWI			- 22-wire Serial Interface
 		// 26 SPM READY		- Store Program Memory Ready
-		
-		
+				
 	}
 
 	private void callInterrupt(int offset) {

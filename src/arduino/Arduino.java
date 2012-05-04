@@ -15,43 +15,58 @@ public class Arduino {
 	ATmega328P cpu = new ATmega328P();
 
 	public void step(int n) {
-
+		
 		for(int i = 0; i < n; i++) {
-			System.out.println("\n[Arduino->run()] Iteration #" + x);
 			if (cpu.hasInstructions()) cpu.execute();
-
+			x++;
+		//}
+			System.out.println("\n[Arduino->run()] Iteration #" + (x-1));
+			System.out.println("[Arduino] PC: 0x" + Integer.toHexString(cpu.program_counter) + " InstID: " + cpu.current_instruction_id
+					+ " Instr: " + cpu.getInstructionById(cpu.current_instruction_id).name);
+			System.out.print("[Arduino] [offset 0x24]: ");
+			for (int j = 0; j < 8; j++) {
+				//System.out.print(i + ": " + BinaryFunctions.byteToBoolArray(this.sram.readByte(0x24))[i] + " ");
+				System.out.print(j + ": " + (((cpu.sram.readByte(0x24) >> j) & 0x1) == 1) + " ");
+			}
+			System.out.print("\n[Arduino] [offset 0x25]: ");
+			for (int j = 0; j < 8; j++) {
+				System.out.print(j + ": " + BinaryFunctions.byteToBoolArray(cpu.sram.readByte(0x25))[j] + " ");
+			}
 			System.out.println(getCpuRegisters());
 			System.out.println(getXYZPointers()); // + " " + getStackInfo());
-			System.out.println(getCpuFlags() + "\n");
-			System.out.println("TOIE0: " + cpu.getFlag(cpu.TIMSK0, cpu.TOIE0) + " TOV0:" + cpu.getFlag(cpu.TIFR0, cpu.TOV0));
-			System.out.println("[Timer] counter: " + cpu.timer0.getCounter());
-			x++;
+			System.out.println(getCpuFlags());
+			System.out.println("[Arduino] Timer counter: " + cpu.timer0.getCounter());
+			System.out.println("[Arduino] TOIE0: " + cpu.getFlag(cpu.TIMSK0, cpu.TOIE0) + " TOV0:" + cpu.getFlag(cpu.TIFR0, cpu.TOV0));
+			
 		}
-
-
-	}
+	}	
+		
 
 	public void run() {
-
+		
 		while(cpu.hasInstructions()) {
 			System.out.println("\n[Arduino->run()] Iteration #" + x);
+	
 			cpu.execute();
-
+			
+			System.out.print("[Arduino] [offset 0x24]: ");
+			for (int j = 0; j < 8; j++) {
+				//System.out.print(i + ": " + BinaryFunctions.byteToBoolArray(this.sram.readByte(0x24))[i] + " ");
+				System.out.print(j + ": " + (((cpu.sram.readByte(0x24) >> j) & 0x1) == 1) + " ");
+			}
+			System.out.print("\n[Arduino] [offset 0x25]: ");
+			for (int j = 0; j < 8; j++) {
+				System.out.print(j + ": " + BinaryFunctions.byteToBoolArray(cpu.sram.readByte(0x25))[j] + " ");
+			}
+		
 			System.out.println(getCpuRegisters());
 			System.out.println(getXYZPointers()); // + " " + getStackInfo());
-			System.out.println(getCpuFlags() + "\n");
-			System.out.println("TOIE0: " + cpu.getFlag(cpu.TIMSK0, cpu.TOIE0) + " TOV0:" + cpu.getFlag(cpu.TIFR0, cpu.TOV0));
-			System.out.println("[Timer] counter: " + cpu.timer0.getCounter());
+			System.out.println(getCpuFlags());
+			System.out.println("[Arduino] TOIE0: " + cpu.getFlag(cpu.TIMSK0, cpu.TOIE0) + " TOV0:" + cpu.getFlag(cpu.TIFR0, cpu.TOV0));
+			
+			try{Thread.sleep(0,1);}catch(Exception e) {};
+			
 			x++;
-
-			try{
-				//do what you want to do before sleeping
-				Thread.sleep(0,1);//sleep
-				//do what you want to do after sleeptig
-			}
-			catch(Exception e){
-				//If this thread was intrrupted by nother thread 
-			}
 
 		}
 

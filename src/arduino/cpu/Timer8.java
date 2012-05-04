@@ -1,7 +1,7 @@
 package arduino.cpu;
 
-public class Timer8 implements Runnable, ATmega328P_Definitions {
-
+public class Timer8 implements ATmega328P_Definitions {
+	
 	MegaAVR cpu;
 
 	// internal variables
@@ -26,21 +26,7 @@ public class Timer8 implements Runnable, ATmega328P_Definitions {
 		return this.counter;
 	}
 	
-	public void run() {
-		while (true) {
-			execute();
-			/*
-			try {
-				Thread.sleep(1);
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			*/
-		}
-	}
-
-	public void execute() {
+	public void update() {
 
 			switch (this.clockSelect = (cpu.sram.readByte(TCCR0B) & 0x7)) {	// Clock Select Bits
 			case 0: return; 
@@ -87,11 +73,11 @@ public class Timer8 implements Runnable, ATmega328P_Definitions {
 		
 
 		counter = (counter == TOP) ? 0 : counter+1;
-		this.cpu.sram.writeByte(TCNT0 & 0xff, counter);
+		this.cpu.sram.writeByte(TCNT0, counter);
 
 		if (counter == 0) {
-			//for(int i = 0; i < 200; i++) System.out.println("[timer->mode_FastPWM]: About to set Flag");
 			cpu.setFlag(TIFR0, TOV0);
+			System.out.println("#####[timer->mode_FastPWM]: Timer0 OVERFLOW - TOV0 Flag Set.");
 		}
 
 		// Compare Output Mode A

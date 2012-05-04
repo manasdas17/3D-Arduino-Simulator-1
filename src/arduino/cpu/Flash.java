@@ -34,8 +34,8 @@ public class Flash {
 	
 	public int readWordFromInstructionMemory(int offset) {
 		
-		System.out.println("[getWordFromInstrucionMemory()] Returning 16 bits: 0x"
-				+ Integer.toHexString(((this.i_mem[offset] & 0xff) << 8) | (this.i_mem[offset+1] & 0xff)));
+		//System.out.println("[getWordFromInstrucionMemory()] Returning 16 bits: 0x"
+		//		+ Integer.toHexString(((this.i_mem[offset] & 0xff) << 8) | (this.i_mem[offset+1] & 0xff)));
 		
 		return ((this.i_mem[offset] & 0xff) << 8) | (this.i_mem[offset+1] & 0xff);
 		

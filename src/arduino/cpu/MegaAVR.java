@@ -15,7 +15,7 @@ public abstract class MegaAVR {
 	public SRAM sram;		// change this later to protected
 	protected Flash flash;
 	protected boolean[] pins;
-	
+
 	// offsets to be defined in child class
 	protected byte SREG;
 	protected byte SPH, SPL;
@@ -31,13 +31,13 @@ public abstract class MegaAVR {
 	protected final byte I = 0x7;
 
 	// execution variables
-	protected int program_counter;
+	public int program_counter;			// chage to protected after debug
 	protected int instruction_register;	
-	protected int current_instruction_id;
+	public int current_instruction_id;	//change to protected after debug
 	protected int clock = 0;
 
 	// high-level functions
-	
+
 	public boolean hasInstructions() {
 		return this.program_counter <= this.flash.i_count*2 ? true : false;
 	}
@@ -45,7 +45,7 @@ public abstract class MegaAVR {
 	public int noOfLoadedInstructions() {
 		return flash.i_count;
 	}
-	
+
 	public static int getInstructionId(int instr) {
 
 		for (int i = 0; i < Instructions.length; i++) {
@@ -70,7 +70,7 @@ public abstract class MegaAVR {
 
 	public int decodeInstructionParameter(char ch) {
 
-		System.out.print("[MegaAVR->decodeInstructionParameter()] variable: " + ch);
+		//System.out.print("[MegaAVR->decodeInstructionParameter()] variable: " + ch);
 
 		String bitmask = "";
 		String parameter = "";
@@ -87,20 +87,24 @@ public abstract class MegaAVR {
 			if (bitmask.charAt(i) == '1') parameter = instruction.charAt(i) + parameter;	
 		}
 
-		System.out.println(" value: 0x" + Integer.toHexString(Integer.parseInt(parameter, 2))
-				+ " (" + Integer.parseInt(parameter,2) + ")");
+		//System.out.println(" value: 0x" + Integer.toHexString(Integer.parseInt(parameter, 2))
+		//		+ " (" + Integer.parseInt(parameter,2) + ")");
 
 		return Integer.parseInt(parameter, 2);
 
 	}
-	
+
 
 	/////////////////////////////////////////// Internal Operations \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+	protected void updateClock(int cycles) {
+		this.clock+= cycles;
+	}
 
 	protected void incrementProgramCounter(int k) {
 		this.program_counter += k*0x2;
 	}
-	
+
 	// Status Register
 	public boolean getStatusFlag(byte flag) {
 		return BinaryFunctions.getBit(this.sram.readByte(this.SREG), flag) ? true : false;
@@ -109,20 +113,20 @@ public abstract class MegaAVR {
 	protected void setStatusFlag(byte flag, boolean value) {
 		this.sram.writeByte(this.SREG, BinaryFunctions.setBit(this.sram.readByte(this.SREG), flag, value));
 	}
-	
+
 	// Cpu Flags
 	public boolean getFlag(int offset, byte flag) {
 		return BinaryFunctions.getBit(this.sram.readByte(offset), flag);
 	}
-	
+
 	protected void setFlag(int offset, byte flag) {
 		this.sram.writeByte(offset, BinaryFunctions.setBit(this.sram.readByte(offset), flag, true));
 	}
-	
-	protected void clearFlag(int offset, byte flag) {
+
+	protected void clearFlag(int offset, byte flag) {	
 		this.sram.writeByte(offset, BinaryFunctions.setBit(this.sram.readByte(offset), flag, false));
 	}
-	
+
 	public int getXRegister() {
 		return ((this.sram.readByte(27) << 8 & 0xff) | (this.sram.readByte(26) & 0xff));
 	}
@@ -183,89 +187,82 @@ public abstract class MegaAVR {
 	protected void adc_command() {
 
 		//parameters			
-		int r = decodeInstructionParameter('r');	// 0 <= r <= 31
-		int d = decodeInstructionParameter('d');	// 0 <= d <= 31
-
-		boolean Rd3 = BinaryFunctions.getBit(this.sram.readByte(d), 3); //before operation
-		boolean Rd7 = BinaryFunctions.getBit(this.sram.readByte(d), 7);
-		boolean Rr3 = BinaryFunctions.getBit(this.sram.readByte(r), 3);
-		boolean Rr7 = BinaryFunctions.getBit(this.sram.readByte(r), 7);
+		int d,R;
+		int Rd = this.sram.readByte(d = this.decodeInstructionParameter('d'));	// 0 <= r <= 31
+		int Rr = this.sram.readByte(this.decodeInstructionParameter('r'));		// 0 <= r <= 31
 
 		//operation
-		this.sram.writeByte(d, (this.sram.readByte(r) + this.sram.readByte(d)));
-		if (getStatusFlag(C)) this.sram.writeByte(d, this.sram.readByte(d)+1);
-
-		boolean R3 = BinaryFunctions.getBit(this.sram.readByte(d), 3); //after operation
-		boolean R7 = BinaryFunctions.getBit(this.sram.readByte(d), 7);
+		this.sram.writeByte(d, R = this.getStatusFlag(C) ? Rr + Rd + 1 : Rr + Rd);
 
 		//flags
-		this.setStatusFlag(C, (Rd7 & Rr7 | Rr7 & !R7 | !R7 & Rd7));
-		this.setStatusFlag(Z, this.sram.readByte(d) == 0 ? true : false);
-		this.setStatusFlag(N, R7);
-		this.setStatusFlag(V, (Rd7 & Rr7 & !R7 | !Rd7 & !Rr7 & R7));
+		this.setStatusFlag(C, ((Rd&0x80) & (Rr&0x80) | (Rr&0x80) & ~(R&0x80) | ~(R&0x80) & (Rd&0x80)) == 0x80);
+		this.setStatusFlag(Z, R == 0);
+		this.setStatusFlag(N, (R&0x80) == 0x80);
+		this.setStatusFlag(V, ((Rd&0x80) & (Rr&0x80) & ~(R&0x80) | ~(Rd&0x80) & ~(Rr&0x80) & (R&0x80)) == 0x80);
 		this.setStatusFlag(S, getStatusFlag(N) ^ getStatusFlag(Z) );
-		this.setStatusFlag(H, (Rd3 & Rr3 | Rr3 & !R3 | !R3 & Rd3 ));
+		this.setStatusFlag(H, ((Rd&0x8) & (Rr&0x8) | (Rr&0x8) & ~(R&0x8) | ~(R&0x8) & (Rd&0x8)) == 0x8);
 
 		//program counter
-		incrementProgramCounter(1);
-		
+		this.incrementProgramCounter(1);
+
+		//clock
+		this.updateClock(1);
+
 	}
 
 	protected void add_command() {
 
-		//parameters
-		int r = decodeInstructionParameter('r');	// 0 <= r <= 31
-		int d = decodeInstructionParameter('d');	// 0 <= d <= 31
-
-		boolean Rd3 = BinaryFunctions.getBit(this.sram.readByte(d), 3); //before operation
-		boolean Rd7 = BinaryFunctions.getBit(this.sram.readByte(d), 7);
-		boolean Rr3 = BinaryFunctions.getBit(this.sram.readByte(r), 3);
-		boolean Rr7 = BinaryFunctions.getBit(this.sram.readByte(r), 7);
+		//parameters			
+		int d,R;
+		int Rd = this.sram.readByte(d = this.decodeInstructionParameter('d'));	// 0 <= r <= 31
+		int Rr = this.sram.readByte(this.decodeInstructionParameter('r'));		// 0 <= r <= 31
 
 		//operation
-		this.sram.writeByte(d, this.sram.readByte(r) + this.sram.readByte(d));
-
-		boolean R3 = BinaryFunctions.getBit(this.sram.readByte(d), 3); //after operation
-		boolean R7 = BinaryFunctions.getBit(this.sram.readByte(d), 7);
+		this.sram.writeByte(d, R = Rr + Rd);
 
 		//flags
-		this.setStatusFlag(C, (Rd7 & Rr7 | Rr7 & !R7 | !R7 & Rd7));
-		this.setStatusFlag(Z, this.sram.readByte(d) == 0 ? true : false);
-		this.setStatusFlag(N, R7);
-		this.setStatusFlag(V, (Rd7 & Rr7 & !R7 | !Rd7 & !Rr7 & R7));
+		this.setStatusFlag(C, ((Rd&0x80) & (Rr&0x80) | (Rr&0x80) & ~(R&0x80) | ~(R&0x80) & (Rd&0x80)) == 0x80);
+		this.setStatusFlag(Z, R == 0);
+		this.setStatusFlag(N, (R&0x80) == 0x80);
+		this.setStatusFlag(V, ((Rd&0x80) & (Rr&0x80) & ~(R&0x80) | ~(Rd&0x80) & ~(Rr&0x80) & (R&0x80)) == 0x80);
 		this.setStatusFlag(S, getStatusFlag(N) ^ getStatusFlag(Z) );
-		this.setStatusFlag(H, (Rd3 & Rr3 | Rr3 & !R3 | !R3 & Rd3 ));
+		this.setStatusFlag(H, ((Rd&0x8) & (Rr&0x8) | (Rr&0x8) & ~(R&0x8) | ~(R&0x8) & (Rd&0x8)) == 0x8);
 
 		//program counter
 		incrementProgramCounter(1);
-		
+
+		//clock
+		this.updateClock(1);
+
 	}
 
 	protected void adiw_command() {
 
-		//parameters
-		int K = decodeInstructionParameter('K');			// 0 <= K <= 64
-		int d = 24 + 2*decodeInstructionParameter('d');	// 0 <= d <= 3; d = {24,26,28,30}
+		///parameters
+		int d,R;
+		int Rdh = this.sram.readByte(1+(d = 24 + 2*this.decodeInstructionParameter('d')));	// d = {24,26,28,30}
+		int K = this.decodeInstructionParameter('K');		// 0 <= K <= 63
 
-		boolean Rdh7 = BinaryFunctions.getBit(this.sram.readByte(d+1), 7);
+		//boolean Rdh7 = BinaryFunctions.getBit(this.sram.readByte(d+1), 7);
 
 		//operation
-		int result = ((this.sram.readByte(d+1) << 8) | (this.sram.readByte(d))) + K;
-		this.sram.writeByte(d, result & 0xff); 
-		this.sram.writeByte(d+1, (result & 0xff00 >> 8));
-
-		boolean R15 = BinaryFunctions.getBit(this.sram.readByte(d+1), 7);
+		R = ((this.sram.readByte(d+1) << 8) | (this.sram.readByte(d))) + K;
+		this.sram.writeByte(d, R & 0xff); 
+		this.sram.writeByte(d+1, (R >> 8) & 0xff);
 
 		//flags
-		this.setStatusFlag(C, !R15 & Rdh7);
-		this.setStatusFlag(Z, ((this.sram.readByte(d) | this.sram.readByte(d+1)) == 0) ? true : false);
-		this.setStatusFlag(N, R15);
-		this.setStatusFlag(V, (!Rdh7 & R15));
-		this.setStatusFlag(S, getStatusFlag(N) ^ getStatusFlag(Z) );
+		this.setStatusFlag(C, (((R&0x8000) & ~((Rdh&0x80)<<8)) == 0x8000));
+		this.setStatusFlag(Z, R == 0);
+		this.setStatusFlag(N, (R&0x8000) == 0x8000); 
+		this.setStatusFlag(V, ((((Rdh&0x80)<<8) & ~(R&0x8000)) == 0x8000));
+		this.setStatusFlag(S, this.getStatusFlag(N) ^ this.getStatusFlag(V));
 
 		//program counter
 		incrementProgramCounter(1);
-		
+
+		//clock
+		this.updateClock(2);
+
 	}
 
 	protected void and_command() {
@@ -278,15 +275,16 @@ public abstract class MegaAVR {
 		this.sram.writeByte(d, this.sram.readByte(d) & this.sram.readByte(r));
 
 		//flags
-		this.setStatusFlag(Z, this.sram.readByte(d) == 0 ? true : false);
+		this.setStatusFlag(Z, (this.sram.readByte(d) == 0));
 		this.setStatusFlag(N, (BinaryFunctions.getBit(this.sram.readByte(d), 7)));
 		this.setStatusFlag(V, false);
 		this.setStatusFlag(S, this.getStatusFlag(N) ^ this.getStatusFlag(Z) );
 
-		System.out.println("[and_command()] [ d r ] " + d + " " + r);
-
 		//program counter
 		incrementProgramCounter(1);
+
+		//clock
+		this.updateClock(1);
 
 	}
 
@@ -300,14 +298,17 @@ public abstract class MegaAVR {
 		this.sram.writeByte(d, (this.sram.readByte(d) & K));
 
 		//flags
-		this.setStatusFlag(Z, this.sram.readByte(d) == 0 ? true : false);
+		this.setStatusFlag(Z, (this.sram.readByte(d) == 0));
 		this.setStatusFlag(N, (BinaryFunctions.getBit(this.sram.readByte(d), 7)));
 		this.setStatusFlag(V, false);
 		this.setStatusFlag(S, this.getStatusFlag(N) ^ this.getStatusFlag(V) );
 
 		//program counter
 		incrementProgramCounter(1);
-		
+
+		//clock
+		this.updateClock(1);
+
 	}
 
 	protected void asr_command() { 
@@ -326,6 +327,9 @@ public abstract class MegaAVR {
 		//program counter
 		incrementProgramCounter(1);
 
+		//clock
+		this.updateClock(1);
+
 	}
 
 	protected void bld_command() { 
@@ -342,6 +346,9 @@ public abstract class MegaAVR {
 		//operation
 		this.incrementProgramCounter(this.getStatusFlag(s) ? 1 : k+1);
 
+		//clock
+		this.updateClock(this.getStatusFlag(s) ? 1 : 2);
+
 	}
 
 	protected void brbs_command() { //complete
@@ -354,6 +361,9 @@ public abstract class MegaAVR {
 		//operation
 		this.incrementProgramCounter(this.getStatusFlag(s) ? k+1 : 1);
 
+		//clocks
+		this.updateClock(this.getStatusFlag(s) ? 2 : 1);
+
 	}
 
 	protected void brcc_command() {
@@ -365,8 +375,11 @@ public abstract class MegaAVR {
 		//operation
 		this.incrementProgramCounter(this.getStatusFlag(C) ? 1 : k+1);
 
+		//clocks
+		this.updateClock(this.getStatusFlag(C) ? 1 : 2);
+
 	}
-	
+
 	protected void brcs_command() {
 
 		//parameters
@@ -375,6 +388,9 @@ public abstract class MegaAVR {
 
 		//operation
 		this.incrementProgramCounter(this.getStatusFlag(C) ? k+1 : 1);
+
+		//clock
+		this.updateClock(this.getStatusFlag(C) ? 1 : 2);
 
 	}
 	protected void break_command() {
@@ -388,6 +404,9 @@ public abstract class MegaAVR {
 
 		//operation
 		this.incrementProgramCounter(this.getStatusFlag(Z) ? k+1 : 1);
+
+		//clock
+		this.updateClock(this.getStatusFlag(Z) ? 2 : 1);
 
 	}
 	protected void brge_command() {
@@ -423,7 +442,10 @@ public abstract class MegaAVR {
 		//System.out.println("[brne_command()] modified k: " + k);
 
 		//program counter
-		this.incrementProgramCounter(this.getStatusFlag(this.Z)? 1 : k+1);
+		this.incrementProgramCounter(this.getStatusFlag(Z) ? 1 : k+1);
+
+		//clock
+		this.updateClock(this.getStatusFlag(Z) ? 1 : 2);
 
 	}
 	protected void brpl_command() {
@@ -455,6 +477,9 @@ public abstract class MegaAVR {
 		//program counter
 		this.incrementProgramCounter(1);
 
+		//clock
+		this.updateClock(1);
+
 	}
 	protected void bst_command() {
 
@@ -472,7 +497,11 @@ public abstract class MegaAVR {
 		//program counter
 		this.program_counter = k;
 
+		//clock
+		this.updateClock(4);
+
 	}
+
 	protected void cbi_command() {
 
 	}
@@ -492,6 +521,9 @@ public abstract class MegaAVR {
 
 		//program counter
 		this.incrementProgramCounter(1);
+
+		//clock
+		this.updateClock(1);
 
 	}
 	protected void cln_command() {
@@ -530,103 +562,83 @@ public abstract class MegaAVR {
 		//program counter
 		this.incrementProgramCounter(1);
 
+		//clock
+		this.updateClock(1);
+
 	}
 	protected void cp_command() {
 
 		//parameters
-		int d = this.decodeInstructionParameter('d');
-		int r = this.decodeInstructionParameter('r');
-
-		//pre operation
-		boolean Rd3 = BinaryFunctions.getBit(this.sram.readByte(d), 3);
-		boolean Rd7 = BinaryFunctions.getBit(this.sram.readByte(d), 7);
-		boolean Rr3 = BinaryFunctions.getBit(this.sram.readByte(r), 3);
-		boolean Rr7 = BinaryFunctions.getBit(this.sram.readByte(r), 7);
+		int Rd = this.sram.readByte(this.decodeInstructionParameter('d'));
+		int Rr = this.sram.readByte(this.decodeInstructionParameter('r'));
 
 		//operation
-		int R = this.sram.readByte(d) - this.sram.readByte(r);
-
-		//post operation
-		boolean R3 = BinaryFunctions.getBit(R, 3);
-		boolean R7 = BinaryFunctions.getBit(R, 7);
+		int R = (Rd - Rr) & 0xff;
 
 		//flags
-		this.setStatusFlag(C, (Math.abs(this.sram.readByte(r)) > Math.abs(this.sram.readByte(d))) ? true : false);
-		this.setStatusFlag(Z, ((R == 0) ? true : false));
-		this.setStatusFlag(N, R7);
-		this.setStatusFlag(V, Rd7 & !Rr7 & !R7 | !Rd7 & Rr7 & R7);
+		this.setStatusFlag(C, (~(Rd&0x80) & (Rr&0x80) | (Rr&0x80) & (R&0x80) | (R&0x80) & ~(Rd&0x80)) == 0x80);		
+		this.setStatusFlag(Z, R == 0);
+		this.setStatusFlag(N, (R&0x80) == 0x80);
+		this.setStatusFlag(V, ((Rd&0x80) & ~(Rr&0x80) & ~(R&0x80) | ~(Rd&0x80) & (Rr&0x80) & (R&0x80)) == 0x80);
 		this.setStatusFlag(S, this.getStatusFlag(N) ^ this.getStatusFlag(V));
-		this.setStatusFlag(H, !Rd3 & Rr3 | Rr3 & R3 | R3 & !Rd3);
+		this.setStatusFlag(H, (~(Rd&0x8) & (Rr&0x8) | (Rr&0x8) & (R&0x8) | (R&0x8) & ~(Rd&0x8)) == 0x8);
 
 		//program counter
 		this.incrementProgramCounter(1);
 
+		//clock
+		this.updateClock(1);
+
 	}
-	
+
 	protected void cpc_command() {
 
 		//parameters
-		int d = this.decodeInstructionParameter('d');
-		int r = this.decodeInstructionParameter('r');
-
-		//pre operation
-		boolean Rd3 = BinaryFunctions.getBit(this.sram.readByte(d), 3);
-		boolean Rd7 = BinaryFunctions.getBit(this.sram.readByte(d), 7);
-		boolean Rr3 = BinaryFunctions.getBit(this.sram.readByte(r), 3);
-		boolean Rr7 = BinaryFunctions.getBit(this.sram.readByte(r), 7);
+		int Rd = this.sram.readByte(this.decodeInstructionParameter('d'));
+		int Rr = this.sram.readByte(this.decodeInstructionParameter('r'));
 
 		//operation
-		int c = (this.getStatusFlag(C) ? 1 : 0); // carry
-		int R = this.sram.readByte(d) - this.sram.readByte(r) - c;
-
-		//post operation
-		boolean R3 = BinaryFunctions.getBit(R, 3);
-		boolean R7 = BinaryFunctions.getBit(R, 7);
+		int R = (this.getStatusFlag(C) ? Rd - Rr - 1 : Rd - Rr) & 0xff;
 
 		//flags
-		this.setStatusFlag(C, (Math.abs(this.sram.readByte(r) + c) > Math.abs(this.sram.readByte(d))) ? true : false);
+		this.setStatusFlag(C, (~(Rd&0x80) & (Rr&0x80) | (Rr&0x80) & (R&0x80) | (R&0x80) & ~(Rd&0x80)) == 0x80);		
 		if (R != 0) this.setStatusFlag(Z, false);
-		this.setStatusFlag(N, R7);
-		this.setStatusFlag(V, Rd7 & !Rr7 & !R7 | !Rd7 & Rr7 & R7);
+		this.setStatusFlag(N, (R&0x80) == 0x80);
+		this.setStatusFlag(V, ((Rd&0x80) & ~(Rr&0x80) & ~(R&0x80) | ~(Rd&0x80) & (Rr&0x80) & (R&0x80)) == 0x80);
 		this.setStatusFlag(S, this.getStatusFlag(N) ^ this.getStatusFlag(V));
-		this.setStatusFlag(H, !Rd3 & Rr3 | Rr3 & R3 | R3 & !Rd3);
+		this.setStatusFlag(H, (~(Rd&0x8) & (Rr&0x8) | (Rr&0x8) & (R&0x8) | (R&0x8) & ~(Rd&0x8)) == 0x8);
 
 		//program counter
 		this.incrementProgramCounter(1);
 
+		//clock
+		this.updateClock(1);
+
 	}
 
 
-	protected void cpi_command() { // NOT COMPLETED !!!
+	protected void cpi_command() {
+		
 		//parameters
-		int d = 16 + this.decodeInstructionParameter('d'); // 16 <= d <=31
-		int K = this.decodeInstructionParameter('K');      // 0 <= K <= 255
+		int Rd = this.sram.readByte(this.decodeInstructionParameter('d')+0x10); 	// 16 <= d <= 31 
+		int K = this.decodeInstructionParameter('K'); 								// 0 <= K <= 255
 
-		//before operation
-		boolean Rd3 = BinaryFunctions.getBit(this.sram.readByte(d), 3);
-		boolean Rd7 = BinaryFunctions.getBit(this.sram.readByte(d), 7);
-		boolean K7 = BinaryFunctions.getBit(K,7);
-		boolean K3 = BinaryFunctions.getBit(K,3);
-
-
-		//operation
-		int result = this.sram.readByte(d) - K;
-
-		//after operation
-		boolean R3 = BinaryFunctions.getBit(this.sram.readByte(d), 3);
-		boolean R7 = BinaryFunctions.getBit(this.sram.readByte(d), 7);
+		int R = (Rd - K) & 0xff;
 
 		//flags
-		this.setStatusFlag(C, (Math.abs(K) > Math.abs(this.sram.readByte(d)) ? true : false));
-		this.setStatusFlag(Z, (result == 0) ? true : false);
-		this.setStatusFlag(N, BinaryFunctions.getBit(this.sram.readByte(d), 7));
-		this.setStatusFlag(V, Rd7 & !K7 & R7 | !Rd7 & K7 & R7);
-		this.setStatusFlag(S, this.getStatusFlag(N) ^ this.getStatusFlag(V) );
-		this.setStatusFlag(H, !Rd3 & K3 | K3 & R3 | R3 & !Rd3);
+		this.setStatusFlag(C, (~(Rd&0x80) & (K&0x80) | (K&0x80) & (R&0x80) | (R&0x80) & ~(Rd&0x80)) == 0x80);		
+		this.setStatusFlag(Z, R == 0);
+		this.setStatusFlag(N, (R&0x80) == 0x80);
+		this.setStatusFlag(V, ((Rd&0x80) & ~(K&0x80) & ~(R&0x80) | ~(Rd&0x80) & (K&0x80) & (R&0x80)) == 0x80);
+		this.setStatusFlag(S, this.getStatusFlag(N) ^ this.getStatusFlag(V));
+		this.setStatusFlag(H, (~(Rd&0x8) & (K&0x8) | (K&0x8) & (R&0x8) | (R&0x8) & ~(Rd&0x8)) == 0x8);
 
-		//program counter
+		//Program Counter
 		incrementProgramCounter(1);
 
+		//clock
+		this.updateClock(1);
+		
 	}
 	protected void cpse_command() {
 
@@ -647,6 +659,9 @@ public abstract class MegaAVR {
 
 		//program counter
 		this.incrementProgramCounter(1);
+
+		//clock
+		this.updateClock(1);
 
 	}
 	protected void des_command() {
@@ -678,13 +693,16 @@ public abstract class MegaAVR {
 		this.sram.writeByte(d, this.sram.readByte(d) ^ this.sram.readByte(r));
 
 		//flags
-		this.setStatusFlag(Z, this.sram.readByte(d) == 0 ? true : false);
+		this.setStatusFlag(Z, (this.sram.readByte(d) == 0));
 		this.setStatusFlag(N, (BinaryFunctions.getBit(this.sram.readByte(d), 7)));
 		this.setStatusFlag(V, false);
 		this.setStatusFlag(S, this.getStatusFlag(N) ^ this.getStatusFlag(V) );
 
 		//program counter
 		incrementProgramCounter(1);
+
+		//clock
+		this.updateClock(1);
 
 	}
 
@@ -711,14 +729,17 @@ public abstract class MegaAVR {
 
 		//operation
 		this.sram.writeByte(d,this.sram.readByte(A+0x20));
-		
+
 		System.out.println("[in_command()]: wrote + 0x" 
-		+ Integer.toHexString(this.sram.readByte(d))
-		+ " (" + this.sram.readByte(d) + ") into offset 0x"
-		+ Integer.toHexString(d) + " (" + d +")");
+				+ Integer.toHexString(this.sram.readByte(d))
+				+ " (" + this.sram.readByte(d) + ") into offset 0x"
+				+ Integer.toHexString(d) + " (" + d +")");
 
 		//program counter
 		this.incrementProgramCounter(1);
+
+		//clock
+		this.updateClock(1);
 
 	}
 	protected void inc_command() {
@@ -736,7 +757,10 @@ public abstract class MegaAVR {
 		//program counter
 		System.out.println("[jmp_command()] value of k: 0x" + Integer.toHexString(k));
 		this.program_counter = k;
-		
+
+		//clock
+		this.updateClock(1);
+
 	}
 
 	protected void lac_command() {
@@ -748,7 +772,16 @@ public abstract class MegaAVR {
 	protected void lat_command() {
 
 	}
-	
+
+	/*
+	LD instruction can load data from program memory since the flash is memory mapped. Loading data from the data memory
+	takes 1 clock cycle, and loading from the program memory takes 2 clock cycles. But if an interrupt occur (before the last
+	clock cycle) no additional clock cycles is necessary when loading from the program memory. Hence, the instruction takes
+	only 1 clock cycle to execute.
+
+	Think about that when implementing interrupts.
+	 */
+
 	protected void ldx1_command() {
 
 		//parameters
@@ -759,12 +792,14 @@ public abstract class MegaAVR {
 
 		//debug
 		System.out.println("[ldx1_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d) & 0xff)
-				+ " (" + (this.sram.readByte(d) & 0xff) + ") into X Register (offset 0x" 
-				+ Integer.toHexString((this.getXRegister()) & 0xffff) + ")"
-				+ " (" + ((this.getXRegister()) & 0xffff) + ")");
+				+ " (" + (this.sram.readByte(d) & 0xff) + ") into offset 0x" 
+				+ Integer.toHexString((this.getXRegister()) & 0xffff) + " (" + d + ")");
 
 		//program counter
 		this.incrementProgramCounter(1);
+
+		//clock
+		this.updateClock(1);
 
 	}
 	protected void ldx2_command() {
@@ -795,11 +830,14 @@ public abstract class MegaAVR {
 
 		//debug
 		System.out.println("[ldz1_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d) & 0xff)
-				+ " (" + (this.sram.readByte(d) & 0xff) + ") into offset 0x" + Integer.toHexString(this.getZRegister() & 0xffff)
-				+ " (" + (this.getZRegister() & 0xffff) + ")");
+				+ " (" + (this.sram.readByte(d) & 0xff) + ") into offset 0x" + Integer.toHexString(d)
+				+ " (" + d + ")");
 
 		//program counter
 		this.incrementProgramCounter(1);
+
+		//clock
+		this.updateClock(1);
 
 	}
 	protected void ldz2_command() {
@@ -809,7 +847,7 @@ public abstract class MegaAVR {
 
 	}
 	protected void ldz4_command() {
-		
+
 		//parameters
 		int q = this.decodeInstructionParameter('q');		// 0 <= q <= 63
 		int d = this.decodeInstructionParameter('d');		// 0 <= d <= 31
@@ -822,11 +860,14 @@ public abstract class MegaAVR {
 		System.out.println("[ldz4_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d) & 0xff)
 				+ " (" + (this.sram.readByte(d) & 0xff) + ") into offset 0x" + Integer.toHexString(this.getZRegister() & 0xffff)
 				+ " (" + (this.getZRegister() & 0xffff) + ")");
-		*/
-		
+		 */
+
 		//program counter
 		this.incrementProgramCounter(1);
-		
+
+		//clock
+		this.updateClock(3);
+
 	}
 	protected void ldi_command() {
 
@@ -845,6 +886,9 @@ public abstract class MegaAVR {
 		//program counter
 		this.incrementProgramCounter(1);
 
+		//clock
+		this.updateClock(1);
+
 	}
 	protected void lds_command() {
 
@@ -853,10 +897,13 @@ public abstract class MegaAVR {
 		int k = this.flash.readWordFromInstructionMemory(this.program_counter + 2);
 
 		//operation
-		this.sram.writeByte(d, k);
+		this.sram.writeByte(d, this.sram.readByte(k));
 
 		//program counter
 		this.incrementProgramCounter(2);
+
+		//clock
+		this.updateClock(1);
 
 	}
 	protected void lds16_command() {
@@ -883,6 +930,9 @@ public abstract class MegaAVR {
 		//program counter
 		this.incrementProgramCounter(1);
 
+		//clock
+		this.updateClock(3);
+
 	}
 
 	protected void lpm3_command() {
@@ -901,6 +951,9 @@ public abstract class MegaAVR {
 
 		//program counter
 		this.incrementProgramCounter(1);
+
+		//clock
+		this.updateClock(3);
 
 	}
 	protected void lsl_command() {
@@ -921,6 +974,9 @@ public abstract class MegaAVR {
 		//program counter
 		this.incrementProgramCounter(1);
 
+		//clock
+		this.updateClock(1);
+
 	}
 
 	protected void movw_command() {
@@ -935,6 +991,9 @@ public abstract class MegaAVR {
 
 		//program counter
 		this.incrementProgramCounter(1);
+
+		//clock
+		this.updateClock(1);
 
 	}
 
@@ -964,14 +1023,17 @@ public abstract class MegaAVR {
 		this.sram.writeByte(d, this.sram.readByte(d) | this.sram.readByte(r));
 
 		//flags
-		this.setStatusFlag(Z, this.sram.readByte(d) == 0 ? true : false);
+		this.setStatusFlag(Z, (this.sram.readByte(d) == 0));
 		this.setStatusFlag(N, (BinaryFunctions.getBit(this.sram.readByte(d), 7)));
 		this.setStatusFlag(V, false);
 		this.setStatusFlag(S, this.getStatusFlag(N) ^ this.getStatusFlag(Z) );
 
 		//program counter
 		incrementProgramCounter(1);
-		
+
+		//clock
+		this.updateClock(1);
+
 	}
 
 
@@ -985,7 +1047,7 @@ public abstract class MegaAVR {
 		this.sram.writeByte(d, this.sram.readByte(d) | K);
 
 		//flags
-		this.setStatusFlag(Z, this.sram.readByte(d) == 0 ? true : false);
+		this.setStatusFlag(Z, (this.sram.readByte(d) == 0));
 		this.setStatusFlag(N, (BinaryFunctions.getBit(this.sram.readByte(d), 7)));
 		this.setStatusFlag(V, false);
 		this.setStatusFlag(S, this.getStatusFlag(N) ^ this.getStatusFlag(Z) );
@@ -993,6 +1055,8 @@ public abstract class MegaAVR {
 		//program counter
 		incrementProgramCounter(1);
 
+		//clock
+		this.updateClock(1);
 	}
 
 	protected void out_command() {
@@ -1012,21 +1076,27 @@ public abstract class MegaAVR {
 		//program counter
 		this.incrementProgramCounter(1);
 
+		//clock
+		this.updateClock(1);
+
 	}
 	protected void pop_command() {
-		
+
 		//parameters
 		int d = this.decodeInstructionParameter('d');
-		
+
 		//operation
 		this.setStackPointer(this.getStackPointer()+1);
 		this.sram.writeByte(d, this.readByteFromStack());
-		
+
 		//program counter
 		this.incrementProgramCounter(1);
 
+		//clock
+		this.updateClock(2);
+
 	}
-	
+
 	protected void push_command() {
 
 		//parameters
@@ -1050,6 +1120,9 @@ public abstract class MegaAVR {
 		//program counter
 		this.incrementProgramCounter(1);
 
+		//clock
+		this.updateClock(2);
+
 	}
 	protected void rcall_command() {
 
@@ -1064,18 +1137,24 @@ public abstract class MegaAVR {
 		this.setStackPointer(this.getStackPointer()+2);
 		this.program_counter = this.readWordFromStack();
 
+		//clock
+		this.updateClock(4);
+
 	}
 
 	protected void reti_command() {
-		
+
 		//operation
 		this.setStackPointer(this.getStackPointer()+2);
-		
+
 		//flags
 		this.setStatusFlag(I, true);
-		
+
 		//program counter
 		this.program_counter = this.readWordFromStack();
+
+		//clock
+		this.updateClock(4);
 
 	}
 
@@ -1088,6 +1167,9 @@ public abstract class MegaAVR {
 		//program counter
 		this.incrementProgramCounter(k+1);
 
+		//clock
+		this.updateClock(1);
+
 	}
 
 	protected void rol_command() {
@@ -1099,72 +1181,57 @@ public abstract class MegaAVR {
 	protected void sbc_command() {
 
 		//parameters
-		int d = this.decodeInstructionParameter('d');
-		int r = this.decodeInstructionParameter('r');
-
-		//pre operation
-		boolean Rd3 = BinaryFunctions.getBit(this.sram.readByte(d), 3);
-		boolean Rd7 = BinaryFunctions.getBit(this.sram.readByte(d), 7);
-		boolean Rr3 = BinaryFunctions.getBit(this.sram.readByte(r), 3);
-		boolean Rr7 = BinaryFunctions.getBit(this.sram.readByte(r), 7);
-
+		int R,d;
+		int Rd = this.sram.readByte(d = this.decodeInstructionParameter('d'));
+		int Rr = this.sram.readByte(this.decodeInstructionParameter('r'));
+		
 		//operation
-		int c = (this.getStatusFlag(C) ? 1 : 0); // carry
-		this.sram.writeByte(d, (this.sram.readByte(d) - this.sram.readByte(r) - c));
-
-		//post operation
-		boolean R3 = BinaryFunctions.getBit(this.sram.readByte(d), 3);
-		boolean R7 = BinaryFunctions.getBit(this.sram.readByte(d), 7);
+		this.sram.writeByte(d, R = this.getStatusFlag(C) ? Rd - Rr - 1 : Rd - Rr);
 
 		//flags
-		this.setStatusFlag(C, (Math.abs(this.sram.readByte(r) + c) > Math.abs(this.sram.readByte(d))) ? true : false);
-		if (this.sram.readByte(d) != 0) this.setStatusFlag(Z, false);
-		this.setStatusFlag(N, R7);
-		this.setStatusFlag(V, Rd7 & !Rr7 & !R7 | !Rd7 & Rr7 & R7);
+		this.setStatusFlag(C, (~(Rd&0x80) & (Rr&0x80) | (Rr&0x80) & (R&0x80) | (R&0x80) & ~(Rd&0x80)) == 0x80);		
+		if (R != 0) this.setStatusFlag(Z, false);
+		this.setStatusFlag(N, (R&0x80) == 0x80);
+		this.setStatusFlag(V, ((Rd&0x80) & ~(Rr&0x80) & ~(R&0x80) | ~(Rd&0x80) & (Rr&0x80) & (R&0x80)) == 0x80);
 		this.setStatusFlag(S, this.getStatusFlag(N) ^ this.getStatusFlag(V));
-		this.setStatusFlag(H, !Rd3 & Rr3 | Rr3 & R3 | R3 & !Rd3);
+		this.setStatusFlag(H, (~(Rd&0x8) & (Rr&0x8) | (Rr&0x8) & (R&0x8) | (R&0x8) & ~(Rd&0x8)) == 0x8);
 
 		//program counter
 		this.incrementProgramCounter(1);
-		
+
+		//clock
+		this.updateClock(1);
+
 	}
 
 	protected void sbci_command() {
-
-		//parameters	
-		int d = 16 + this.decodeInstructionParameter('d'); // 16 <= d <= 31
-		int K = this.decodeInstructionParameter('K'); // 0 <= K <= 255
-
-		//pre operation
-		boolean Rd3 = BinaryFunctions.getBit(this.sram.readByte(d), 3);
-		boolean Rd7 = BinaryFunctions.getBit(this.sram.readByte(d), 7);
-		boolean K7 = BinaryFunctions.getBit(K,7);
-		boolean K3 = BinaryFunctions.getBit(K,3);
+		//parameters
+		int d, R;
+		int Rd = this.sram.readByte(d = this.decodeInstructionParameter('d')+0x10); // 16 <= d <= 32 
+		int K = this.decodeInstructionParameter('K'); 								// 0 <= K <= 255
 
 		//operation
-		int c = (this.getStatusFlag(C) ? 1 : 0); // carry
-		this.sram.writeByte(d, (this.sram.readByte(d) - K - c));
+		this.sram.writeByte(d, R = this.getStatusFlag(C) ? Rd - K - 1 : Rd - K);
 
 		//debug
 		System.out.println("[sbci_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d) & 0xff)
 				+ " (" + (this.sram.readByte(d) & 0xff) + ") into offset 0x" + Integer.toHexString(d)
 				+ " (" + (d) + ")");
 
-		//post operation
-		boolean R3 = BinaryFunctions.getBit(this.sram.readByte(d), 3); 
-		boolean R7 = BinaryFunctions.getBit(this.sram.readByte(d), 7);
-
 		//flags
-		this.setStatusFlag(C, (Math.abs(K+c) > Math.abs(this.sram.readByte(d))) ? true : false);
-		if (!(this.sram.readByte(d) == 0)) this.setStatusFlag(Z, false);
-		this.setStatusFlag(N, (((this.sram.readByte(d) >> 7) & 0x1) == 1) ? true : false); 
-		this.setStatusFlag(V, Rd7 & !K7 & !R7 | !Rd7 & K7 & R7);
-		this.setStatusFlag(S, this.getStatusFlag(N) ^ this.getStatusFlag(V) );
-		this.setStatusFlag(H, !Rd3 & K3 | R3 | R3 & !Rd3);
+		this.setStatusFlag(C, (~(Rd&0x80) & (K&0x80) | (K&0x80) & (R&0x80) | (R&0x80) & ~(Rd&0x80)) == 0x80);		
+		if (R != 0) this.setStatusFlag(Z, false);
+		this.setStatusFlag(N, (R&0x80) == 0x80);
+		this.setStatusFlag(V, ((Rd&0x80) & ~(K&0x80) & ~(R&0x80) | ~(Rd&0x80) & (K&0x80) & (R&0x80)) == 0x80);
+		this.setStatusFlag(S, this.getStatusFlag(N) ^ this.getStatusFlag(V));
+		this.setStatusFlag(H, (~(Rd&0x8) & (K&0x8) | (K&0x8) & (R&0x8) | (R&0x8) & ~(Rd&0x8)) == 0x8);
 
 		//program counter
 		this.incrementProgramCounter(1);
-		
+
+		//clock
+		this.updateClock(1);
+
 	}
 	protected void sbi_command() {
 
@@ -1180,28 +1247,29 @@ public abstract class MegaAVR {
 
 		//operation
 		//Lower 32 I/O addresses -> A+0x20
-		if (BinaryFunctions.getBit(this.sram.readByte(A+0x20), b) == true) {
+		if (BinaryFunctions.getBit(this.sram.readByte(A+0x20), b)) {
 			incrementProgramCounter(this.getInstructionWordLength(this.flash.readWordFromInstructionMemory(this.program_counter+2)));	
 		}
 
 		//program counter
 		this.incrementProgramCounter(1);
-		
+
+		//clock
+		this.updateClock(BinaryFunctions.getBit(this.sram.readByte(A+0x20), b) ?
+				(1 + this.getInstructionWordLength(this.flash.readWordFromInstructionMemory(this.program_counter))) : 1);
+
 	}
 	protected void sbiw_command() {
 
 		//parameters
-		int d = 24 + this.decodeInstructionParameter('d');	// d = {24,26,28,30}
+		int d,R;
+		int Rdh = this.sram.readByte(1+(d = 24 + 2*this.decodeInstructionParameter('d')));	// d = {24,26,28,30}
 		int K = this.decodeInstructionParameter('K');		// 0 <= K <= 63
-
-		boolean Rdh7 = BinaryFunctions.getBit(this.sram.readByte(d+1),7);
-
+		
 		//operation
-		int R = ((this.sram.readByte(d+1) << 8) | this.sram.readByte(d)) - K;
+		R = ((this.sram.readByte(d+1) << 8) | this.sram.readByte(d)) - K;
 		this.sram.writeByte(d+1, (R >> 8) & 0xff);
 		this.sram.writeByte(d, R & 0xff);
-
-		boolean R15 = BinaryFunctions.getBit(this.sram.readByte(d+1),7);
 
 		//debug
 		System.out.println("[sbiw_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d) & 0xff)
@@ -1213,14 +1281,17 @@ public abstract class MegaAVR {
 				+ " (" + (d+1) + ")");
 
 		//flags
-		this.setStatusFlag(C, ((Math.abs(K) > Math.abs(this.sram.readByte(d))) ? true : false));
-		this.setStatusFlag(Z, ((R == 0) ? true : false));
-		this.setStatusFlag(N, (((this.sram.readByte(d+1) >> 7) & 0x1) == 1) ? true : false); 
-		this.setStatusFlag(V, Rdh7 & !R15);
+		this.setStatusFlag(C, (((R&0x8000) & ~((Rdh&0x80)<<8)) == 0x8000));
+		this.setStatusFlag(Z, R == 0);
+		this.setStatusFlag(N, (R&0x8000) == 0x8000); 
+		this.setStatusFlag(V, ((((Rdh&0x80)<<8) & ~(R&0x8000)) == 0x8000));
 		this.setStatusFlag(S, this.getStatusFlag(N) ^ this.getStatusFlag(V));
 
 		//program counter
 		this.incrementProgramCounter(1);
+
+		//clock
+		this.updateClock(1);
 
 	}
 	protected void sbr_command() {
@@ -1236,13 +1307,17 @@ public abstract class MegaAVR {
 		int b = this.decodeInstructionParameter('b');	// 0 <= b <= 7 
 
 		//operation
-		if (BinaryFunctions.getBit(this.sram.readByte(r), b) == true) {
+		if (BinaryFunctions.getBit(this.sram.readByte(r), b)) {
 			incrementProgramCounter(this.getInstructionWordLength(this.flash.readWordFromInstructionMemory(this.program_counter+2)));	
 		}
 
 		//program counter
 		incrementProgramCounter(1);
-		
+
+		//clock
+		this.updateClock(BinaryFunctions.getBit(this.sram.readByte(r), b) ?
+				(1 + this.getInstructionWordLength(this.flash.readWordFromInstructionMemory(this.program_counter))) : 1);
+
 	}
 	protected void sec_command() {
 
@@ -1257,6 +1332,9 @@ public abstract class MegaAVR {
 
 		//program counter
 		this.incrementProgramCounter(1);
+
+		//clock
+		this.updateClock(1);
 
 	}
 	protected void sen_command() {
@@ -1300,6 +1378,9 @@ public abstract class MegaAVR {
 		//program counter
 		this.incrementProgramCounter(1);
 
+		//clock
+		this.updateClock(2);
+
 	}
 	protected void stx2_command() {
 
@@ -1318,6 +1399,9 @@ public abstract class MegaAVR {
 
 		//program counter
 		this.incrementProgramCounter(1);
+
+		//clock
+		this.updateClock(2);
 
 	}
 	protected void stx3_command() {
@@ -1345,13 +1429,18 @@ public abstract class MegaAVR {
 		this.sram.writeByte(this.getZRegister(), this.sram.readByte(r));
 
 		//debug
-		System.out.println("[stz1_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(r) & 0xff)
-				+ " (" + (this.sram.readByte(r) & 0xff) + ") into Z Register (offset 0x" 
-				+ Integer.toHexString((this.getZRegister()) & 0xffff) + ")"
-				+ " (" + ((this.getZRegister()) & 0xffff) + ")");
+		System.out.println("[stz1_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(this.getZRegister()))
+				+ " (" + this.sram.readByte(this.getZRegister()) + ") into Z Register (offset 0x" 
+				+ Integer.toHexString(this.getZRegister() & 0xffff) + ")"
+				+ " (" + (this.getZRegister() & 0xffff) + ")");
+
+		System.out.println("[stz1_command()] offset 0x6e: " + this.sram.readByte(0x6e));
 
 		//program counter
 		this.incrementProgramCounter(1);
+
+		//clock
+		this.updateClock(2);
 
 	}
 	protected void stz2_command() {
@@ -1375,11 +1464,14 @@ public abstract class MegaAVR {
 		//debug
 		System.out.println("[sts_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(r) & 0xff)
 				+ " (" + (this.sram.readByte(r) & 0xff) + ") into offset 0x" 
-				+ Integer.toHexString(k & 0xffff) + " (" + (k & 0xffff) + ")");
+				+ Integer.toHexString(k) + " (" + k + ")");
 
 		//program counter
 		this.incrementProgramCounter(2);
-		
+
+		//clock
+		this.updateClock(2);
+
 	}
 	protected void sts16_command() {
 
@@ -1387,68 +1479,56 @@ public abstract class MegaAVR {
 	protected void sub_command() {
 
 		//parameters
-		int d = this.decodeInstructionParameter('d');
-		int r = this.decodeInstructionParameter('r');
-
-		//pre operation
-		boolean Rd3 = BinaryFunctions.getBit(this.sram.readByte(d), 3); //before operation
-		boolean Rd7 = BinaryFunctions.getBit(this.sram.readByte(d), 7);
-		boolean Rr3 = BinaryFunctions.getBit(this.sram.readByte(r), 3);
-		boolean Rr7 = BinaryFunctions.getBit(this.sram.readByte(r), 7);
+		int R,d;
+		int Rd = this.sram.readByte(d = this.decodeInstructionParameter('d'));
+		int Rr = this.sram.readByte(this.decodeInstructionParameter('r'));
 
 		//operation
-		this.sram.writeByte(d, this.sram.readByte(d) - this.sram.readByte(r));
-
-		//post operation
-		boolean R3 = BinaryFunctions.getBit(this.sram.readByte(d), 3); 
-		boolean R7 = BinaryFunctions.getBit(this.sram.readByte(d), 7);
+		this.sram.writeByte(d, R = Rd - Rr);
 
 		//flags
-		this.setStatusFlag(C, (Math.abs(this.sram.readByte(r)) > Math.abs(this.sram.readByte(d)) ? true : false));
-		this.setStatusFlag(Z, ((this.sram.readByte(d)) == 0) ? true : false);
-		this.setStatusFlag(N, (BinaryFunctions.getBit(this.sram.readByte(d), 7)));
-		this.setStatusFlag(V, Rd7 & !Rr7 & !R7 | !Rd7 & Rr7 & R7);
+		this.setStatusFlag(C, (~(Rd&0x80) & (Rr&0x80) | (Rr&0x80) & (R&0x80) | (R&0x80) & ~(Rd&0x80)) == 0x80);		
+		this.setStatusFlag(Z, R == 0);
+		this.setStatusFlag(N, (R&0x80) == 0x80);
+		this.setStatusFlag(V, ((Rd&0x80) & ~(Rr&0x80) & ~(R&0x80) | ~(Rd&0x80) & (Rr&0x80) & (R&0x80)) == 0x80);
 		this.setStatusFlag(S, this.getStatusFlag(N) ^ this.getStatusFlag(V));
-		this.setStatusFlag(H, !Rd3 & Rr3 | Rr3 & R3 | R3 & !Rd3);
-
+		this.setStatusFlag(H, (~(Rd&0x8) & (Rr&0x8) | (Rr&0x8) & (R&0x8) | (R&0x8) & ~(Rd&0x8)) == 0x8);
+		
 		//program counter
 		this.incrementProgramCounter(1);
+
+		//clock
+		this.updateClock(1);
 
 	}
 	protected void subi_command() {
 
-		//parameters	
-		int d = 16 + this.decodeInstructionParameter('d');	// 16 <= d <= 31
-		int K = this.decodeInstructionParameter('K');		// 0 <= K <= 255
+		//parameters
+		int d, R;
+		int Rd = this.sram.readByte(d = this.decodeInstructionParameter('d')+0x10); // 16 <= d <= 31 
+		int K = this.decodeInstructionParameter('K'); 								// 0 <= K <= 255
 
-		//pre operation
-		boolean Rd3 = BinaryFunctions.getBit(this.sram.readByte(d), 3);
-		boolean Rd7 = BinaryFunctions.getBit(this.sram.readByte(d), 7);
-		boolean K7 = BinaryFunctions.getBit(K,7);
-		boolean K3 = BinaryFunctions.getBit(K,3);
-		
 		//Operation
-		this.sram.writeByte(d, this.sram.readByte(d) - K);
+		this.sram.writeByte(d, R = Rd - K);
 
 		//debug
 		System.out.println("[subi_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d) & 0xff)
 				+ " (" + this.sram.readByte(d)  + ") into offset 0x" + Integer.toHexString(d)
 				+ " (" + d + ")");
 
-		//post operation
-		boolean R3 = BinaryFunctions.getBit(this.sram.readByte(d), 3); 
-		boolean R7 = BinaryFunctions.getBit(this.sram.readByte(d), 7);
-
-		//Flags
-		this.setStatusFlag(C, (Math.abs(K) > Math.abs(this.sram.readByte(d)) ? true : false) );
-		this.setStatusFlag(Z, this.sram.readByte(d) == 0 ? true : false);
-		this.setStatusFlag(N, (BinaryFunctions.getBit(this.sram.readByte(d), 7)));
-		this.setStatusFlag(V, Rd7 & !K7 & !R7 | !Rd7 & K7 & R7);
+		//flags
+		this.setStatusFlag(C, (~(Rd&0x80) & (K&0x80) | (K&0x80) & (R&0x80) | (R&0x80) & ~(Rd&0x80)) == 0x80);		
+		this.setStatusFlag(Z, R == 0);
+		this.setStatusFlag(N, (R&0x80) == 0x80);
+		this.setStatusFlag(V, ((Rd&0x80) & ~(K&0x80) & ~(R&0x80) | ~(Rd&0x80) & (K&0x80) & (R&0x80)) == 0x80);
 		this.setStatusFlag(S, this.getStatusFlag(N) ^ this.getStatusFlag(V));
-		this.setStatusFlag(H, !Rd3 & K3 | R3 | R3 & !Rd3);
+		this.setStatusFlag(H, (~(Rd&0x8) & (K&0x8) | (K&0x8) & (R&0x8) | (R&0x8) & ~(Rd&0x8)) == 0x8);
 
 		//Program Counter
 		incrementProgramCounter(1);
+
+		//clock
+		this.updateClock(1);
 
 	}
 
@@ -1621,12 +1701,12 @@ public abstract class MegaAVR {
 		new Instruction(143, "wdr", 0x95A8, 0xFFFF, "1001 0101 1010 1000", 1),
 		new Instruction(145, "xch", 0x9204, 0xFE0F, "1001 001r rrrr 0100", 1)
 	};
-	
+
 
 	protected void callInstruction() {
 
 		switch (this.current_instruction_id) {
-		
+
 		case 0: adc_command(); break;
 		case 1: add_command(); break;
 		case 2: adiw_command(); break;

@@ -3,7 +3,7 @@ package arduino.cpu;
 public final class Instruction {
 
 	int id;
-	String name;
+	public String name;
 	int code;
 	int bitmask;
 	String formatString;

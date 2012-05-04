@@ -15,13 +15,13 @@ public class BinaryFunctions {
 
 	public static boolean getBit(byte x, int bit) {
 		
-		return (((x >> bit) & 0x1) == 1) ? true : false;
+		return (((x >> bit) & 0x1) == 1);
 		
 	}
 	
 	public static boolean getBit(int x, int bit) {
 		
-		return (((x >> bit) & 0x1) == 1) ? true : false;
+		return (((x >> bit) & 0x1) == 1);
 		
 	}
 	
@@ -31,11 +31,19 @@ public class BinaryFunctions {
 		
 	}
 	
+	
 	public static byte setBit(int x, byte bit, boolean value) {
 		
 		return (byte) ((x & ~(1 << bit)) | ((value ? 1 : 0) << bit));
 		
 	}
+	/*
+	public static int setBit(int x, int bit, boolean value) {
+		
+		return (byte) ((x & ~(1 << bit)) | ((value ? 1 : 0) << bit));
+	
+	}
+	*/
 	
 	/*
 	
@@ -112,6 +120,8 @@ public class BinaryFunctions {
 		}
 		return bytes;
 	}
+
+	
 
 }
 
