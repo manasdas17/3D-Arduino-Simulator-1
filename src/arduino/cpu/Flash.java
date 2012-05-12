@@ -16,7 +16,7 @@ public class Flash {
 	
 	public Flash(String hexFile) {
 		try {
-			this.loadHexFile(hexFile);
+			this.loadHexFile(hexFile.replace(" ", ""));
 			//loadHexFile("/Users/h4x/Desktop/CoderLvL_Asian/disassemblies/code2/Blink.cpp.hex");
 		} catch (Exception e) {
 			e.printStackTrace();

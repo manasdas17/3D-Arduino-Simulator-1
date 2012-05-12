@@ -19,8 +19,7 @@ public final class Instruction {
 		this.bitmask = bitmask;
 		this.formatString = formatString;
 		this.words = words;
-		//this.param1 = param1;
-		//this.param2 = param2;
+		
 	}
 }
 

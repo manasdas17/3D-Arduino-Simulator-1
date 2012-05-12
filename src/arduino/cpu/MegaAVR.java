@@ -37,7 +37,6 @@ public abstract class MegaAVR {
 	protected int clock = 0;
 
 	// high-level functions
-
 	public boolean hasInstructions() {
 		return this.program_counter <= this.flash.i_count*2 ? true : false;
 	}
@@ -92,6 +91,10 @@ public abstract class MegaAVR {
 
 		return Integer.parseInt(parameter, 2);
 
+	}
+	
+	public boolean getPin(int n) {
+		return this.pins[n];
 	}
 
 
@@ -206,7 +209,7 @@ public abstract class MegaAVR {
 		this.incrementProgramCounter(1);
 
 		//clock
-		this.updateClock(1);
+		this.updateClock(1);	
 
 	}
 
@@ -242,8 +245,6 @@ public abstract class MegaAVR {
 		int d,R;
 		int Rdh = this.sram.readByte(1+(d = 24 + 2*this.decodeInstructionParameter('d')));	// d = {24,26,28,30}
 		int K = this.decodeInstructionParameter('K');		// 0 <= K <= 63
-
-		//boolean Rdh7 = BinaryFunctions.getBit(this.sram.readByte(d+1), 7);
 
 		//operation
 		R = ((this.sram.readByte(d+1) << 8) | (this.sram.readByte(d))) + K;
@@ -390,7 +391,7 @@ public abstract class MegaAVR {
 		this.incrementProgramCounter(this.getStatusFlag(C) ? k+1 : 1);
 
 		//clock
-		this.updateClock(this.getStatusFlag(C) ? 1 : 2);
+		this.updateClock(this.getStatusFlag(C) ? 2 : 1);
 
 	}
 	protected void break_command() {
@@ -554,8 +555,8 @@ public abstract class MegaAVR {
 
 		//flags
 		this.setStatusFlag(C, true);
-		this.setStatusFlag(Z, (this.sram.readByte(d) == 0) ? true : false);
-		this.setStatusFlag(N, (((this.sram.readByte(d) >> 7) & 0x1) == 1) ? true : false); 
+		this.setStatusFlag(Z, (this.sram.readByte(d) == 0));
+		this.setStatusFlag(N, ((this.sram.readByte(d) >> 7) & 0x1) == 1); 
 		this.setStatusFlag(V, false);
 		this.setStatusFlag(S, this.getStatusFlag(N) ^ this.getStatusFlag(V));
 
@@ -652,9 +653,9 @@ public abstract class MegaAVR {
 		this.sram.writeByte(d, this.sram.readByte(d) - 1);
 
 		//flags
-		this.setStatusFlag(Z, (this.sram.readByte(d) == 0) ? true : false);
-		this.setStatusFlag(N, ((((this.sram.readByte(d) >> 7) & 0x1 ) == 1) ? true : false));
-		this.setStatusFlag(V, (this.sram.readByte(d) == 0x7f) ? true : false);
+		this.setStatusFlag(Z, this.sram.readByte(d) == 0);
+		this.setStatusFlag(N, ((this.sram.readByte(d) >> 7) & 0x1 ) == 1);
+		this.setStatusFlag(V, this.sram.readByte(d) == 0x7f);
 		this.setStatusFlag(S, this.getStatusFlag(V) ^ this.getStatusFlag(N));
 
 		//program counter
@@ -683,7 +684,7 @@ public abstract class MegaAVR {
 
 	}
 
-	protected void eor_command() { //Complete
+	protected void eor_command() {
 
 		//parameters
 		int r = decodeInstructionParameter('r');	// 0 <= r <= 31
@@ -693,7 +694,7 @@ public abstract class MegaAVR {
 		this.sram.writeByte(d, this.sram.readByte(d) ^ this.sram.readByte(r));
 
 		//flags
-		this.setStatusFlag(Z, (this.sram.readByte(d) == 0));
+		this.setStatusFlag(Z, this.sram.readByte(d) == 0);
 		this.setStatusFlag(N, (BinaryFunctions.getBit(this.sram.readByte(d), 7)));
 		this.setStatusFlag(V, false);
 		this.setStatusFlag(S, this.getStatusFlag(N) ^ this.getStatusFlag(V) );
@@ -730,10 +731,10 @@ public abstract class MegaAVR {
 		//operation
 		this.sram.writeByte(d,this.sram.readByte(A+0x20));
 
-		System.out.println("[in_command()]: wrote + 0x" 
-				+ Integer.toHexString(this.sram.readByte(d))
-				+ " (" + this.sram.readByte(d) + ") into offset 0x"
-				+ Integer.toHexString(d) + " (" + d +")");
+		//System.out.println("[in_command()]: wrote + 0x" 
+		//		+ Integer.toHexString(this.sram.readByte(d))
+		//		+ " (" + this.sram.readByte(d) + ") into offset 0x"
+		//		+ Integer.toHexString(d) + " (" + d +")");
 
 		//program counter
 		this.incrementProgramCounter(1);
@@ -752,10 +753,11 @@ public abstract class MegaAVR {
 		//int k = ( (this.decodeInstructionParameter('k') << 16)
 		//		| flash.i_mem[this.program_counter + 1] ) << 1;
 
-		int k = ((this.decodeInstructionParameter('k') << 16) | this.flash.readWordFromInstructionMemory(this.program_counter+0x2)) << 1;
+		int k = ((this.decodeInstructionParameter('k') << 16)
+				| this.flash.readWordFromInstructionMemory(this.program_counter+0x2)) << 1;
 
 		//program counter
-		System.out.println("[jmp_command()] value of k: 0x" + Integer.toHexString(k));
+		//System.out.println("[jmp_command()] value of k: 0x" + Integer.toHexString(k));
 		this.program_counter = k;
 
 		//clock
@@ -791,9 +793,9 @@ public abstract class MegaAVR {
 		this.sram.writeByte(d, this.sram.readByte(this.getXRegister()));
 
 		//debug
-		System.out.println("[ldx1_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d) & 0xff)
-				+ " (" + (this.sram.readByte(d) & 0xff) + ") into offset 0x" 
-				+ Integer.toHexString((this.getXRegister()) & 0xffff) + " (" + d + ")");
+		//System.out.println("[ldx1_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d) & 0xff)
+		//		+ " (" + (this.sram.readByte(d) & 0xff) + ") into offset 0x" 
+		//		+ Integer.toHexString((this.getXRegister()) & 0xffff) + " (" + d + ")");
 
 		//program counter
 		this.incrementProgramCounter(1);
@@ -829,9 +831,9 @@ public abstract class MegaAVR {
 		this.sram.writeByte(d, this.sram.readByte(this.getZRegister()));
 
 		//debug
-		System.out.println("[ldz1_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d) & 0xff)
-				+ " (" + (this.sram.readByte(d) & 0xff) + ") into offset 0x" + Integer.toHexString(d)
-				+ " (" + d + ")");
+		//System.out.println("[ldz1_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d) & 0xff)
+		//		+ " (" + (this.sram.readByte(d) & 0xff) + ") into offset 0x" + Integer.toHexString(d)
+		//		+ " (" + d + ")");
 
 		//program counter
 		this.incrementProgramCounter(1);
@@ -879,9 +881,9 @@ public abstract class MegaAVR {
 		this.sram.writeByte(d, K);
 
 		//debug
-		System.out.println("[ldi_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d) & 0xff)
-				+ " (" + (this.sram.readByte(d) & 0xff) + ") into offset 0x" + Integer.toHexString(d)
-				+ " (" + (d) + ")");
+		//System.out.println("[ldi_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d) & 0xff)
+		//		+ " (" + (this.sram.readByte(d) & 0xff) + ") into offset 0x" + Integer.toHexString(d)
+		//		+ " (" + (d) + ")");
 
 		//program counter
 		this.incrementProgramCounter(1);
@@ -919,13 +921,12 @@ public abstract class MegaAVR {
 		int d = this.decodeInstructionParameter('d');		// 0 <= d <= 31
 
 		//operation
-
 		this.sram.writeByte(d, this.flash.readByteFromInstructionMemory(this.getZRegister()));
 
 		//debug
-		System.out.println("[lpm2_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d) & 0xff)
-				+ " (" + (this.sram.readByte(d) & 0xff) + ") into offset 0x" 
-				+ Integer.toHexString(d & 0xff) + " (" + (d & 0xff) + ")");
+		//System.out.println("[lpm2_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d) & 0xff)
+		//		+ " (" + (this.sram.readByte(d) & 0xff) + ") into offset 0x" 
+		//		+ Integer.toHexString(d & 0xff) + " (" + (d & 0xff) + ")");
 
 		//program counter
 		this.incrementProgramCounter(1);
@@ -945,9 +946,9 @@ public abstract class MegaAVR {
 		this.setZRegister(this.getZRegister() + 1);
 
 		//debug
-		System.out.println("[lpm3_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d) & 0xff)
-				+ " (" + (this.sram.readByte(d) & 0xff) + ") into offset 0x" 
-				+ Integer.toHexString(d & 0xff) + " (" + (d & 0xff) + ")");
+		//System.out.println("[lpm3_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d) & 0xff)
+		//		+ " (" + (this.sram.readByte(d) & 0xff) + ") into offset 0x" 
+		//		+ Integer.toHexString(d & 0xff) + " (" + (d & 0xff) + ")");
 
 		//program counter
 		this.incrementProgramCounter(1);
@@ -1069,9 +1070,9 @@ public abstract class MegaAVR {
 		this.sram.writeByte(A+0x20, this.sram.readByte(r));
 
 		//debug
-		System.out.println("[out_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(r) & 0xff)
-				+ " (" + (this.sram.readByte(r) & 0xff) + ") into offset 0x" + Integer.toHexString(A+0x20)
-				+ " (" + (A+0x20) + ")");
+		//System.out.println("[out_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(r) & 0xff)
+		//		+ " (" + (this.sram.readByte(r) & 0xff) + ") into offset 0x" + Integer.toHexString(A+0x20)
+		//		+ " (" + (A+0x20) + ")");
 
 		//program counter
 		this.incrementProgramCounter(1);
@@ -1109,8 +1110,8 @@ public abstract class MegaAVR {
 		//this.sram[this.stack_pointer] = this.sram[r];	// 0 <= r <= 31
 		//this.stack_pointer -= 1;
 
-		System.out.println("[push_command()] About to push 0x" + Integer.toHexString((this.sram.readByte(r) & 0xff))
-				+ " into offset 0x" + Integer.toHexString(this.getStackPointer() & 0xffff));
+		//System.out.println("[push_command()] About to push 0x" + Integer.toHexString((this.sram.readByte(r) & 0xff))
+		//		+ " into offset 0x" + Integer.toHexString(this.getStackPointer() & 0xffff));
 
 		this.writeByteToStack(this.sram.readByte(r) & 0xff);
 		this.setStackPointer(this.getStackPointer()-1);
@@ -1214,9 +1215,9 @@ public abstract class MegaAVR {
 		this.sram.writeByte(d, R = this.getStatusFlag(C) ? Rd - K - 1 : Rd - K);
 
 		//debug
-		System.out.println("[sbci_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d) & 0xff)
-				+ " (" + (this.sram.readByte(d) & 0xff) + ") into offset 0x" + Integer.toHexString(d)
-				+ " (" + (d) + ")");
+		//System.out.println("[sbci_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d) & 0xff)
+		//		+ " (" + (this.sram.readByte(d) & 0xff) + ") into offset 0x" + Integer.toHexString(d)
+		//		+ " (" + (d) + ")");
 
 		//flags
 		this.setStatusFlag(C, (~(Rd&0x80) & (K&0x80) | (K&0x80) & (R&0x80) | (R&0x80) & ~(Rd&0x80)) == 0x80);		
@@ -1272,13 +1273,13 @@ public abstract class MegaAVR {
 		this.sram.writeByte(d, R & 0xff);
 
 		//debug
-		System.out.println("[sbiw_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d) & 0xff)
-				+ " (" + (this.sram.readByte(d) & 0xff) + ") into offset 0x" + Integer.toHexString(d)
-				+ " (" + (d) + ")");
+		//System.out.println("[sbiw_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d) & 0xff)
+		//		+ " (" + (this.sram.readByte(d) & 0xff) + ") into offset 0x" + Integer.toHexString(d)
+		//		+ " (" + (d) + ")");
 
-		System.out.println("[sbiw_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d+1) & 0xff)
-				+ " (" + (this.sram.readByte(d+1) & 0xff) + ") into offset 0x" + Integer.toHexString(d+1)
-				+ " (" + (d+1) + ")");
+		//System.out.println("[sbiw_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d+1) & 0xff)
+		//		+ " (" + (this.sram.readByte(d+1) & 0xff) + ") into offset 0x" + Integer.toHexString(d+1)
+		//		+ " (" + (d+1) + ")");
 
 		//flags
 		this.setStatusFlag(C, (((R&0x8000) & ~((Rdh&0x80)<<8)) == 0x8000));
@@ -1370,10 +1371,10 @@ public abstract class MegaAVR {
 		this.sram.writeByte(this.getXRegister(), this.sram.readByte(r));
 
 		//debug
-		System.out.println("[stx2_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(r) & 0xff)
-				+ " (" + (this.sram.readByte(r) & 0xff) + ") into X Register (offset 0x" 
-				+ Integer.toHexString(this.getXRegister() & 0xffff) + ")"
-				+ " (" + (this.getXRegister() & 0xffff) + ")");
+		//System.out.println("[stx2_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(r) & 0xff)
+		//		+ " (" + (this.sram.readByte(r) & 0xff) + ") into X Register (offset 0x" 
+		//		+ Integer.toHexString(this.getXRegister() & 0xffff) + ")"
+		//		+ " (" + (this.getXRegister() & 0xffff) + ")");
 
 		//program counter
 		this.incrementProgramCounter(1);
@@ -1392,10 +1393,10 @@ public abstract class MegaAVR {
 		this.setXRegister(this.getXRegister() + 1);
 
 		//debug
-		System.out.println("[stx2_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(r) & 0xff)
-				+ " (" + (this.sram.readByte(r) & 0xff) + ") into X Register (offset 0x" 
-				+ Integer.toHexString((this.getXRegister()-1) & 0xffff) + ")"
-				+ " (" + ((this.getXRegister()-1) & 0xffff) + ")");
+		//System.out.println("[stx2_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(r) & 0xff)
+		//		+ " (" + (this.sram.readByte(r) & 0xff) + ") into X Register (offset 0x" 
+		//		+ Integer.toHexString((this.getXRegister()-1) & 0xffff) + ")"
+		//		+ " (" + ((this.getXRegister()-1) & 0xffff) + ")");
 
 		//program counter
 		this.incrementProgramCounter(1);
@@ -1429,10 +1430,10 @@ public abstract class MegaAVR {
 		this.sram.writeByte(this.getZRegister(), this.sram.readByte(r));
 
 		//debug
-		System.out.println("[stz1_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(this.getZRegister()))
-				+ " (" + this.sram.readByte(this.getZRegister()) + ") into Z Register (offset 0x" 
-				+ Integer.toHexString(this.getZRegister() & 0xffff) + ")"
-				+ " (" + (this.getZRegister() & 0xffff) + ")");
+		//System.out.println("[stz1_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(this.getZRegister()))
+		//		+ " (" + this.sram.readByte(this.getZRegister()) + ") into Z Register (offset 0x" 
+		//		+ Integer.toHexString(this.getZRegister() & 0xffff) + ")"
+		//		+ " (" + (this.getZRegister() & 0xffff) + ")");
 
 		System.out.println("[stz1_command()] offset 0x6e: " + this.sram.readByte(0x6e));
 
@@ -1462,9 +1463,9 @@ public abstract class MegaAVR {
 		this.sram.writeByte(k, this.sram.readByte(r));
 
 		//debug
-		System.out.println("[sts_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(r) & 0xff)
-				+ " (" + (this.sram.readByte(r) & 0xff) + ") into offset 0x" 
-				+ Integer.toHexString(k) + " (" + k + ")");
+		//System.out.println("[sts_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(r) & 0xff)
+		//		+ " (" + (this.sram.readByte(r) & 0xff) + ") into offset 0x" 
+		//		+ Integer.toHexString(k) + " (" + k + ")");
 
 		//program counter
 		this.incrementProgramCounter(2);
@@ -1512,9 +1513,9 @@ public abstract class MegaAVR {
 		this.sram.writeByte(d, R = Rd - K);
 
 		//debug
-		System.out.println("[subi_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d) & 0xff)
-				+ " (" + this.sram.readByte(d)  + ") into offset 0x" + Integer.toHexString(d)
-				+ " (" + d + ")");
+		//System.out.println("[subi_command()] wrote 0x" + Integer.toHexString(this.sram.readByte(d) & 0xff)
+		//		+ " (" + this.sram.readByte(d)  + ") into offset 0x" + Integer.toHexString(d)
+		//		+ " (" + d + ")");
 
 		//flags
 		this.setStatusFlag(C, (~(Rd&0x80) & (K&0x80) | (K&0x80) & (R&0x80) | (R&0x80) & ~(Rd&0x80)) == 0x80);		

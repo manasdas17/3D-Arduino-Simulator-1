@@ -2,13 +2,94 @@ package arduino.cpu;
 
 public interface ATmega328P_Definitions {
 
-	// Data Space Offsets
+	////////////////////////// PINS \\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+	
+	final byte	PB0 =		14;
+	final byte	PB1 =		15;
+	final byte	PB2 =		16;
+	final byte	PB3 =		17;
+	final byte	PB4 =		18;
+	final byte	PB5 =		19;
+	final byte	PB6 =		9;
+	final byte	PB7 =		10;
+	
+	final byte	PC0 =		23;
+	final byte	PC1 =		24;
+	final byte	PC2 =		25;
+	final byte	PC3 =		26;
+	final byte	PC4 =		27;
+	final byte	PC5 =		28;
+	final byte	PC6 =		1;
+	
+	final byte	PD0 =		2;
+	final byte	PD1 =		3;
+	final byte	PD2 =		4;
+	final byte	PD3 =		5;
+	final byte	PD4 =		6;
+	final byte	PD5 =		11;
+	final byte	PD6 =		12;
+	final byte	PD7 =		13;
+	
+	final byte	PCINT0 =	14;
+	final byte	PCINT1 =	15;
+	final byte	PCINT2 =	16;
+	final byte	PCINT3 =	17;
+	final byte	PCINT4 =	18;
+	final byte	PCINT5 =	19;
+	final byte	PCINT6 =	9;
+	final byte	PCINT7 =	10;
+	final byte	PCINT8 =	23;
+	final byte	PCINT9 =	24;
+	final byte	PCINT10 =	25;
+	final byte	PCINT11 =	26;
+	final byte	PCINT12 =	27;
+	final byte	PCINT13 =	28;
+	final byte	PCINT14 =	1;
+	final byte	PCINT16 =	2;
+	final byte	PCINT17 =	3;
+	final byte	PCINT18 =	4;
+	final byte	PCINT19 =	5;
+	final byte	PCINT20 =	6;
+	final byte	PCINT21 =	11;
+	final byte	PCINT22 =	12;
+	final byte	PCINT23 =	13;
+	
+	final byte	ADC0 =		23;
+	final byte	ADC1 =		24;
+	final byte	ADC2 =		25;
+	final byte	ADC3 =		26;
+	final byte	ADC4 =		27;
+	final byte	ADC5 =		28;
+	
+	
+	
+	////////////////////////// Data Space Offsets \\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 	final int	PINB =		0x23;
 	final int	DDRB =		0x24;
+	
 	final int	PORTB =		0x25;
+	final byte	PORTB0 =	0x0;
+	final byte	PORTB1 =	0x1;
+	final byte	PORTB2 =	0x2;
+	final byte	PORTB3 =	0x3;
+	final byte	PORTB4 =	0x4;
+	final byte	PORTB5 =	0x5;
+	final byte	PORTB6 =	0x6;
+	final byte	PORTB7 =	0x7;
+	
 	final int	PINC =		0x26;
 	final int	DDRC =		0x27;
+	
 	final int	PORTC =		0x28;
+	final byte	PORTC0 =	0x0;
+	final byte	PORTC1 =	0x1;
+	final byte	PORTC2 =	0x2;
+	final byte	PORTC3 =	0x3;
+	final byte	PORTC4 =	0x4;
+	final byte	PORTC5 =	0x5;
+	final byte	PORTC6 =	0x6;
+	
+	
 	final int	PIND =		0x29;
 	final int	DDRD =		0x2A;
 	final int	PORTD =		0x2B;

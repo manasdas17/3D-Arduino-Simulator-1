@@ -4,12 +4,12 @@ public class BinaryFunctions {
 
 	/*
 	public static byte setBitOfByte(byte x, byte bit, boolean value) {
-
+	
 		boolean[] b = byteToBoolArray(x);
 		b[bit] = value;
 		x = boolArrayToByte(b);
 		return x;
-
+	
 	}
 	*/
 

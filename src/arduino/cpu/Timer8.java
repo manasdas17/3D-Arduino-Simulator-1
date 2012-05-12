@@ -77,7 +77,7 @@ public class Timer8 implements ATmega328P_Definitions {
 
 		if (counter == 0) {
 			cpu.setFlag(TIFR0, TOV0);
-			System.out.println("#####[timer->mode_FastPWM]: Timer0 OVERFLOW - TOV0 Flag Set.");
+			//System.out.println("#####[timer->mode_FastPWM]: Timer0 OVERFLOW - TOV0 Flag Set.");
 		}
 
 		// Compare Output Mode A
